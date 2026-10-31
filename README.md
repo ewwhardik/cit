@@ -10,7 +10,7 @@ What it does:
 
 Every result passes one deterministic checker that reproduces the official validator's results exactly. AI reads and explains; code decides.
 
-**Live app:** _add the Vercel URL here after deploying (see [Deploy](#deploy))_
+**Live app:** https://cit-scheduler.onrender.com (engine: https://cit-engine.onrender.com/health)
 
 ## Results on the public dataset
 
