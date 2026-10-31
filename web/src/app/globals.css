@@ -1,0 +1,194 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens (PLAN.md §6.1): OKLCH neutrals in 10 steps, one indigo accent,
+ * status hues only for meaning (approved / pending / conflict). Light and dark.
+ *   gray-1..3  backgrounds (default, hover, active)
+ *   gray-4..6  borders
+ *   gray-9..10 text (secondary, primary)
+ */
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --gray-1: oklch(0.995 0 0);
+  --gray-2: oklch(0.975 0.002 275);
+  --gray-3: oklch(0.955 0.003 275);
+  --gray-4: oklch(0.925 0.004 275);
+  --gray-5: oklch(0.895 0.005 275);
+  --gray-6: oklch(0.85 0.006 275);
+  --gray-7: oklch(0.72 0.008 275);
+  --gray-8: oklch(0.6 0.01 275);
+  --gray-9: oklch(0.5 0.012 275);
+  --gray-10: oklch(0.22 0.012 275);
+  --surface: oklch(1 0 0);
+  --canvas: var(--gray-2);
+
+  --accent: oklch(0.55 0.19 275);
+  --accent-hover: oklch(0.5 0.2 275);
+  --accent-soft: oklch(0.95 0.03 275);
+  --accent-fg: oklch(0.99 0 0);
+
+  --ok: oklch(0.6 0.14 155);
+  --ok-soft: oklch(0.95 0.04 155);
+  --warn: oklch(0.7 0.15 75);
+  --warn-soft: oklch(0.96 0.05 85);
+  --bad: oklch(0.58 0.2 25);
+  --bad-soft: oklch(0.95 0.035 25);
+
+  /* Session kinds in the timetable (tint fill + 2px left bar). */
+  --kind-lecture: oklch(0.55 0.19 275);
+  --kind-tutorial: oklch(0.6 0.13 220);
+  --kind-lab: oklch(0.6 0.14 155);
+  --kind-exam: oklch(0.62 0.16 50);
+  --kind-event: oklch(0.58 0.18 330);
+
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  color-scheme: light;
+}
+
+.dark {
+  --gray-1: oklch(0.17 0.006 275);
+  --gray-2: oklch(0.2 0.007 275);
+  --gray-3: oklch(0.24 0.008 275);
+  --gray-4: oklch(0.28 0.009 275);
+  --gray-5: oklch(0.32 0.01 275);
+  --gray-6: oklch(0.38 0.011 275);
+  --gray-7: oklch(0.5 0.012 275);
+  --gray-8: oklch(0.6 0.012 275);
+  --gray-9: oklch(0.72 0.01 275);
+  --gray-10: oklch(0.95 0.005 275);
+  --surface: oklch(0.19 0.007 275);
+  --canvas: oklch(0.15 0.006 275);
+
+  --accent: oklch(0.68 0.16 275);
+  --accent-hover: oklch(0.74 0.15 275);
+  --accent-soft: oklch(0.3 0.07 275);
+  --accent-fg: oklch(0.15 0.01 275);
+
+  --ok: oklch(0.72 0.14 155);
+  --ok-soft: oklch(0.3 0.06 155);
+  --warn: oklch(0.8 0.14 80);
+  --warn-soft: oklch(0.32 0.06 80);
+  --bad: oklch(0.7 0.17 25);
+  --bad-soft: oklch(0.32 0.07 25);
+
+  --kind-lecture: oklch(0.7 0.15 275);
+  --kind-tutorial: oklch(0.72 0.11 220);
+  --kind-lab: oklch(0.72 0.13 155);
+  --kind-exam: oklch(0.75 0.14 55);
+  --kind-event: oklch(0.72 0.15 330);
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-gray-1: var(--gray-1);
+  --color-gray-2: var(--gray-2);
+  --color-gray-3: var(--gray-3);
+  --color-gray-4: var(--gray-4);
+  --color-gray-5: var(--gray-5);
+  --color-gray-6: var(--gray-6);
+  --color-gray-7: var(--gray-7);
+  --color-gray-8: var(--gray-8);
+  --color-gray-9: var(--gray-9);
+  --color-gray-10: var(--gray-10);
+  --color-surface: var(--surface);
+  --color-canvas: var(--canvas);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-fg: var(--accent-fg);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-bad: var(--bad);
+  --color-bad-soft: var(--bad-soft);
+  --color-kind-lecture: var(--kind-lecture);
+  --color-kind-tutorial: var(--kind-tutorial);
+  --color-kind-lab: var(--kind-lab);
+  --color-kind-exam: var(--kind-exam);
+  --color-kind-event: var(--kind-event);
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  --radius-control: 6px;
+  --radius-card: 12px;
+  --radius-sheet: 16px;
+  --ease-out-soft: var(--ease);
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    background: var(--canvas);
+    color: var(--gray-10);
+    font-size: 14px;
+    letter-spacing: -0.01em;
+    font-feature-settings: "cv11", "ss01";
+  }
+  *,
+  ::before,
+  ::after {
+    border-color: var(--gray-4);
+  }
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  .tabular {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0;
+  }
+}
+
+/* biome-ignore-all lint/complexity/noImportantStyles: reduced-motion must beat component transitions */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: -200% 0;
+  }
+  to {
+    background-position: 200% 0;
+  }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, var(--gray-3) 25%, var(--gray-4) 37%, var(--gray-3) 63%);
+  background-size: 400% 100%;
+  animation: shimmer 1.4s ease infinite;
+  border-radius: var(--radius-control);
+}
+
+/* cmdk palette */
+.cmd-group [cmdk-group-heading] {
+  padding: 8px 10px 4px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--gray-8);
+}
+.cmd-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 36px;
+  padding: 0 10px;
+  border-radius: var(--radius-control);
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--gray-10);
+}
+.cmd-item[data-selected="true"] {
+  background: var(--gray-3);
+}
