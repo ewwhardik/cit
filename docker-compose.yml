@@ -1,0 +1,18 @@
+# Local stack: Postgres + engine. Run the web app with `pnpm dev` in web/.
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: cit
+      POSTGRES_PASSWORD: cit
+      POSTGRES_DB: cit
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+  engine:
+    build: { context: ., dockerfile: engine/Dockerfile }
+    environment:
+      ENGINE_SHARED_SECRET: ${ENGINE_SHARED_SECRET:-}
+      ENGINE_SOLVER_WORKERS: ${ENGINE_SOLVER_WORKERS:-8}
+    ports: ["8000:8000"]
+volumes:
+  pgdata:
