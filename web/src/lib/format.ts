@@ -21,3 +21,10 @@ export const STATUS_LABEL: Record<string, string> = {
   alternative_offered: "Alternative",
   cancelled: "Cancelled",
 };
+
+/** Name for a greeting: skips titles, keeps office names whole ("Dean's Office", "Dr. Pooja Das" → "Pooja"). */
+export function friendlyName(name: string): string {
+  if (/office|department|club|society|cell/i.test(name)) return name;
+  const words = name.split(/\s+/).filter((w) => !/^(dr|prof|mr|mrs|ms|shri|smt)\.?$/i.test(w));
+  return words[0] ?? name;
+}

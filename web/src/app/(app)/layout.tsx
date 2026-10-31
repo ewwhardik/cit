@@ -1,4 +1,7 @@
 import { count, eq } from "drizzle-orm";
+import { GuideButton } from "@/components/guide/guide-button";
+import { Navigator } from "@/components/guide/navigator";
+import { Tour } from "@/components/guide/tour";
 import { CommandMenu, type Jump } from "@/components/shell/command-menu";
 import { mobileNavFor, navFor, ROLE_LABEL } from "@/components/shell/nav";
 import { MobileTabs, SidebarNav } from "@/components/shell/sidebar";
@@ -58,7 +61,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <p className="truncate text-[11px] text-gray-9">{ds?.datasetId ?? "No dataset loaded"}</p>
           </div>
         </div>
-        <CommandMenu items={items} jumps={jumps} />
+        <div data-tour="search">
+          <CommandMenu items={items} jumps={jumps} />
+        </div>
         <div className="min-h-0 flex-1 overflow-y-auto">
           <SidebarNav items={items} badges={badges} />
         </div>
@@ -67,6 +72,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <p className="truncate text-[13px] font-medium">{user.name}</p>
             <p className="truncate text-[11px] text-gray-9">{ROLE_LABEL[user.role]}</p>
           </div>
+          <GuideButton />
           <ThemeToggle />
           <SignOutButton />
         </div>
@@ -78,12 +84,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </div>
         <p className="flex-1 truncate font-display text-[15px] font-bold tracking-tight">CIT Scheduler</p>
         <CommandMenu items={items} jumps={jumps} hotkeys={false} />
+        <GuideButton />
         <ThemeToggle />
         <SignOutButton />
       </header>
 
       <main className="min-w-0 px-4 pt-5 pb-24 md:px-8 md:pt-7 md:pb-10">{children}</main>
       <MobileTabs items={mobileNavFor(user.role)} />
+      <Tour role={user.role} />
+      <Navigator role={user.role} name={user.name} />
     </div>
   );
 }

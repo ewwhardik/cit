@@ -12,7 +12,7 @@ export function SidebarNav({ items, badges = {} }: { items: NavItem[]; badges?: 
   const main = items.filter((i) => i.section !== "manage");
   const manage = items.filter((i) => i.section === "manage");
   return (
-    <nav aria-label="Main" className="grid gap-4">
+    <nav aria-label="Main" data-tour="nav" className="grid gap-4">
       <NavGroup items={main} path={path} badges={badges} />
       {manage.length ? (
         <div className="grid gap-1">

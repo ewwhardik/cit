@@ -2,6 +2,7 @@ import "server-only";
 import { eq } from "drizzle-orm";
 import { db, schema } from "./db";
 import type { JobState } from "./engine";
+import { env, features } from "./env";
 
 /**
  * Solver relay: long CP-SAT jobs run on a GitHub Actions runner (4 vCPU, free
@@ -32,7 +33,7 @@ const QUEUE_TIMEOUT_MS = 6 * 60_000;
 const SILENCE_TIMEOUT_MS = 3 * 60_000;
 
 export function relayEnabled(): boolean {
-  return Boolean(process.env.GITHUB_RELAY_TOKEN && process.env.GITHUB_RELAY_REPO);
+  return features.relay();
 }
 
 export function isRelayJob(jobId: string): boolean {
@@ -64,16 +65,20 @@ export async function startRelay(path: string, body: unknown): Promise<string> {
     startedAt: null,
     updatedAt: now,
   });
-  const repo = process.env.GITHUB_RELAY_REPO;
-  const workflow = process.env.GITHUB_RELAY_WORKFLOW ?? "engine-relay.yml";
+  const {
+    GITHUB_RELAY_REPO: repo,
+    GITHUB_RELAY_WORKFLOW: workflow,
+    GITHUB_RELAY_REF: ref,
+    GITHUB_RELAY_TOKEN: token,
+  } = env();
   const res = await fetch(`https://api.github.com/repos/${repo}/actions/workflows/${workflow}/dispatches`, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${process.env.GITHUB_RELAY_TOKEN}`,
+      Authorization: `Bearer ${token}`,
       Accept: "application/vnd.github+json",
       "X-GitHub-Api-Version": "2022-11-28",
     },
-    body: JSON.stringify({ ref: process.env.GITHUB_RELAY_REF ?? "main", inputs: { job: id } }),
+    body: JSON.stringify({ ref, inputs: { job: id } }),
     signal: AbortSignal.timeout(15_000),
   });
   if (!res.ok) {

@@ -200,6 +200,199 @@
   background: var(--gray-3);
 }
 
+/* ------------------------------------------------------------------ dashboard polish */
+.dash-hero-glow {
+  position: absolute;
+  inset: -40% -10% auto auto;
+  width: 60%;
+  height: 180%;
+  pointer-events: none;
+  background:
+    radial-gradient(closest-side, color-mix(in oklch, var(--accent) 16%, transparent), transparent),
+    radial-gradient(
+      closest-side at 20% 70%,
+      color-mix(in oklch, var(--kind-lab) 10%, transparent),
+      transparent
+    );
+  filter: blur(20px);
+}
+.dash-hero {
+  background-image: radial-gradient(color-mix(in oklch, var(--gray-6) 45%, transparent) 1px, transparent 1px);
+  background-size: 18px 18px;
+  background-position: -9px -9px;
+}
+.dash-hero > .relative {
+  background: linear-gradient(
+    90deg,
+    var(--surface) 35%,
+    color-mix(in oklch, var(--surface) 70%, transparent)
+  );
+}
+.sky-mark.sun {
+  animation: sun-turn 24s linear infinite;
+}
+@keyframes sun-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.twinkle {
+  animation: twinkle 2.4s ease-in-out infinite;
+}
+@keyframes twinkle {
+  50% {
+    opacity: 0.2;
+  }
+}
+.week-bar {
+  transform-origin: bottom;
+  animation: bar-grow 0.8s var(--ease) both;
+}
+@keyframes bar-grow {
+  from {
+    transform: scaleY(0.1);
+  }
+}
+.tip-bubble {
+  animation: tip-in 0.5s var(--ease);
+}
+@keyframes tip-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+.kpi {
+  transition:
+    transform 0.25s var(--ease),
+    box-shadow 0.25s var(--ease),
+    border-color 0.25s;
+}
+.kpi::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, color-mix(in oklch, var(--accent) 70%, transparent), transparent 45%);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+}
+.kpi:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 30px -18px color-mix(in oklch, var(--accent) 55%, transparent);
+}
+.kpi:hover::before {
+  opacity: 1;
+}
+.kpi-seal {
+  animation: seal-pop 0.6s var(--ease) 0.2s both;
+}
+@keyframes seal-pop {
+  from {
+    transform: scale(0) rotate(-45deg);
+  }
+}
+.stat-cell {
+  transition: background 0.2s;
+}
+.stat-cell:hover {
+  background: var(--gray-2);
+}
+
+/* ------------------------------------------------------------------ guide: tour + Iru */
+.tour-spot {
+  box-shadow:
+    0 0 0 9999px rgb(10 8 6 / 0.62),
+    0 0 0 2px var(--accent),
+    0 0 28px 2px color-mix(in oklch, var(--accent) 60%, transparent);
+  animation: tour-pulse 2s ease-in-out infinite;
+}
+@keyframes tour-pulse {
+  50% {
+    box-shadow:
+      0 0 0 9999px rgb(10 8 6 / 0.62),
+      0 0 0 4px color-mix(in oklch, var(--accent) 70%, transparent),
+      0 0 40px 6px color-mix(in oklch, var(--accent) 40%, transparent);
+  }
+}
+.iru {
+  animation: iru-bob 3.2s ease-in-out infinite;
+  transform-origin: 50% 60%;
+}
+.iru-eye {
+  animation: iru-blink 5s infinite;
+  transform-origin: 46px 30px;
+}
+.iru-spark {
+  animation: iru-spark 2.4s ease-in-out infinite;
+  transform-origin: 39px 12px;
+}
+@keyframes iru-bob {
+  50% {
+    transform: translateY(-2px) rotate(-3deg);
+  }
+}
+@keyframes iru-blink {
+  0%,
+  94%,
+  100% {
+    transform: scaleY(1);
+  }
+  97% {
+    transform: scaleY(0.1);
+  }
+}
+@keyframes iru-spark {
+  0%,
+  100% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.navigator-fab {
+  transition:
+    transform 0.3s var(--ease),
+    box-shadow 0.3s;
+}
+.navigator-fab:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 30px -8px color-mix(in oklch, var(--accent) 45%, transparent);
+}
+.navigator-panel {
+  animation: panel-in 0.28s var(--ease);
+  transform-origin: 100% 100%;
+}
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+.typing-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--gray-7);
+  animation: typing 1s ease-in-out infinite;
+}
+@keyframes typing {
+  50% {
+    transform: translateY(-3px);
+    opacity: 0.5;
+  }
+}
+
 /* ------------------------------------------------------------------ landing (/)
  * The public homepage: warm ink, bone, ember and acid lime. Always dark.
  * Fonts come from next/font (Syne, Instrument Serif, Manrope, JetBrains Mono).

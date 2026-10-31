@@ -10,12 +10,14 @@ The provider is chosen with `AI_PROVIDER` (`groq` or `anthropic`). With no key a
 | --- | --- | --- | --- |
 | Groq · `openai/gpt-oss-20b` | `GROQ_PARSE_MODEL` | Plain English/Hinglish venue request → booking draft (strict JSON-schema output); rewording engine explanations in plain language | `web/src/server/ai/parse.ts`, `explain.ts`, `groq.ts` |
 | Groq · `openai/gpt-oss-120b` | `GROQ_ASSIST_MODEL` | Faculty change assistant: reads the user's timetable with tools and proposes structured change operations | `web/src/server/ai/assistant.ts` |
+| Groq · `openai/gpt-oss-20b` (or `NAVIGATOR_MODEL`) | `NAVIGATOR_MODEL` | **Iru, the in-app navigator**: answers "where do I…?" questions and calls one of two tools, open a page from the user's allowed site map or start the guided tour. Rate-limited per user (`NAVIGATOR_RATE_PER_MIN`). | `web/src/server/ai/navigator.ts`, `web/src/app/api/navigator/route.ts` |
 | Anthropic · `claude-haiku-5-5` (alternative provider) | `AI_PARSE_MODEL` | Same as the Groq parse model (structured outputs via `messages.parse`) | same files |
 | Anthropic · `claude-sonnet-5-5` (alternative provider) | `AI_ASSIST_MODEL` | Same as the Groq assistant model (tool use, server-side refusal fallback) | same files |
 
 **Prompts** are kept in `web/src/server/ai/prompts/`:
 - `parse.ts`: booking-draft system prompt and output schema.
 - `assistant.ts`: change-assistant system prompt and tool definitions.
+- `navigator.ts`: Iru's system prompt (the page list comes from `web/src/lib/sitemap.ts`); its two tools are defined in `web/src/server/ai/navigator.ts`.
 
 The explanation-wording prompt is the `SYSTEM` constant in `web/src/server/ai/explain.ts`.
 
@@ -27,6 +29,7 @@ The explanation-wording prompt is the `SYSTEM` constant in `web/src/server/ai/ex
 - **Final room and time.** The LLM writes a *draft* that the user edits. The engine (`/bookings/check-one`) decides availability. The engine's CP-SAT solvers place sessions.
 - **Clock-to-period mapping.** When a request contains explicit times, the deterministic parser's mapping overrides the model's if they disagree.
 - **Database access.** The LLM never touches the database. Every output is parsed with a Zod schema and then normalised by `normalizeDraft`, which clamps periods, resolves rooms and flags conflicts. Change operations are scope-checked (`scopeCheck`: faculty → own sessions only) and validated by the engine (`/changes/evaluate`) before a proposal exists.
+- **Navigation.** Iru can only return "open page X" (X must be in the signed-in role's site map, re-checked in code) or "start the tour". It cannot read or change scheduling data, and without a key the offline matcher (`web/src/lib/navigator-fallback.ts`) answers instead.
 - **Explanations.** Explanation facts come from `engine/app/explain.py`. The model may only reword the summary, and the raw facts stay visible.
 - **Prompt injection.** Request text is wrapped as data. The parse call has no tools. The assistant's tools are read-only, except `propose_change`, which only proposes.
 
@@ -41,16 +44,21 @@ The explanation-wording prompt is the `SYSTEM` constant in `web/src/server/ai/ex
 
 No UI generators (v0 etc.) were used.
 
+Later in the hackathon, Claude Code also implemented, on the team's instructions: the operations-console dashboard, the Exams, Resilience and Versions pages, the GitHub Actions solver relay, the guided tour, Iru (the navigator), the calendar export, the validated configuration module and the documentation in `docs/`. Claude Haiku sub-agents wrote several unit tests (navigator fallback, tour, ICS export) and ran check suites; one of those tests caught a navigator ranking bug that was then fixed.
+
 Claude Code (Anthropic, Opus-class model) also built the public landing page (`web/src/app/page.tsx`, `web/src/components/landing/`): the 3D timetable skyline, the agent orbs, the in-browser parser demo and the styling. Small checks (running the validator and test suites, scanning for secrets) were run by Claude Haiku sub-agents.
 
 ## 3a. What the team did
 
-<!-- Fill this in yourselves, honestly and specifically. Judges compare it with the commit history,
-     where AI-assisted commits carry a Co-Authored-By: Claude trailer. Examples of what belongs here:
-     choosing the approach (CP-SAT, engine/web split), defining requirements and priorities for each
-     prompt, reviewing and testing the output, fixing or rejecting what was wrong, deployment, the video. -->
+**Sai Ram Dash** led the project as its owner and product lead:
 
-- _To be completed by the team._
+- Set the direction and priorities at each stage: what to build, in what order, and what "good" looks like against the problem statement and judging criteria.
+- Specified the features and experience: the 3D homepage and its look, the operations-console dashboard, Iru the in-app guide, the optional step-by-step tour, more statistics, and the requirement to stay on free tiers.
+- Made the platform and account decisions (GitHub, Vercel, Neon, Render, GitHub Actions, Groq). Created the accounts and keys, and approved every deployment, push and permission change.
+- Reviewed the results in the browser and sent work back when it wasn't right: colour mismatches, an "AI-generic" look, the guide being optional rather than forced, the need for real CPU for Generate.
+- Owns the submission: testing on the live site, the demo video and this declaration.
+
+Implementation, in the code-writing sense, was done with Claude Code as declared above. Commits made that way carry a `Co-Authored-By: Claude` trailer, so the history shows exactly which changes were AI-assisted.
 
 ## 4. Running log
 
@@ -64,3 +72,4 @@ Claude Code (Anthropic, Opus-class model) also built the public landing page (`w
 | 2026-10-31 | Claude Code | Groq provider (team's key, stored only in `.env`), Docker/Railway config |
 | 2026-10-31 | Claude Code (+ Haiku sub-agents) | Project review against the brief; 3D landing page (three.js, Lenis); Render deployment |
 | 2026-10-31 | Claude Code (+ Haiku sub-agents) | Panel ops console, exams/resilience/versions pages, GitHub Actions solver relay, resilience scan in the engine, Vercel/Neon deployment, README rewrite |
+| 2026-10-31 | Claude Code (+ Haiku sub-agents) | Site map registry, validated env, guided tour, Iru navigator (Groq, offline fallback), dashboard hero/stats/polish, calendar export, docs/ARCHITECTURE.md |

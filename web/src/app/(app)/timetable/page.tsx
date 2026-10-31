@@ -1,4 +1,4 @@
-import { CalendarX2 } from "lucide-react";
+import { CalendarPlus, CalendarX2 } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
@@ -84,8 +84,17 @@ export default async function TimetablePage({
       />
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <TimetablePicker view={view} id={id} options={options} />
-        <div className="max-md:hidden">
-          <KindLegend />
+        <div className="flex items-center gap-3">
+          <div className="max-md:hidden">
+            <KindLegend />
+          </div>
+          <a
+            href={`/api/timetable/ics?view=${view}&id=${encodeURIComponent(id)}`}
+            className="inline-flex h-8 items-center gap-1.5 rounded-[var(--radius-control)] border border-gray-5 bg-surface px-3 text-[13px] text-gray-10 hover:border-accent hover:text-accent max-md:h-11"
+            title="Download as a calendar file (Google, Apple, Outlook)"
+          >
+            <CalendarPlus className="size-3.5" /> Add to calendar
+          </a>
         </div>
       </div>
       <TimetableGrid

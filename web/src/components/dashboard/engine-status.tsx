@@ -29,7 +29,10 @@ export function EngineStatus() {
 
   const tone = s === null ? "idle" : s.ok ? "ok" : "bad";
   return (
-    <div className="flex items-center gap-2 rounded-full border border-gray-4 bg-surface py-1 pr-1 pl-3 text-[12px]">
+    <div
+      data-tour="engine"
+      className="flex items-center gap-2 rounded-full border border-gray-4 bg-surface py-1 pr-1 pl-3 text-[12px]"
+    >
       <span className="relative flex size-2">
         {tone === "ok" ? (
           <span className="absolute inset-0 animate-ping rounded-full bg-ok opacity-60" />

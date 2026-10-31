@@ -1,17 +1,28 @@
-import { and, count, desc, eq } from "drizzle-orm";
+import { and, asc, count, desc, eq } from "drizzle-orm";
 import { CalendarX2 } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { EngineStatus } from "@/components/dashboard/engine-status";
+import { DashboardHero } from "@/components/dashboard/hero";
 import { NowPanel, type SlotInfo } from "@/components/dashboard/now-panel";
-import { PageHeader } from "@/components/page-header";
+import { WeekNumbers } from "@/components/dashboard/week-numbers";
 import { ReportCard } from "@/components/report/report-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty";
 import { timeAgo } from "@/lib/format";
-import { campusHeat, facultyLoad, groupLoad, HARD_RULES, nextFor, nowAt, seatFit } from "@/lib/insights";
+import {
+  campusHeat,
+  facultyLoad,
+  groupLoad,
+  HARD_RULES,
+  nextFor,
+  nowAt,
+  qualityGrade,
+  seatFit,
+  weekNumbers,
+} from "@/lib/insights";
 import type { Dataset } from "@/lib/schemas/dataset";
 import type { Report, Schedule } from "@/lib/schemas/schedule";
 import { DAYS, periodForHour, periodRange } from "@/lib/time";
@@ -33,14 +44,18 @@ const SOFT_LABEL: Record<string, string> = {
   S6: "Classes at 17:00",
 };
 
-/** The demo week's weekday + the current IST clock, mapped to a teaching period (or the next one). */
-function liveSlot(): { day: string; period: number; isLive: boolean } {
-  const weekday = demoToday().weekday;
-  const hour = Number(
+function istHour(): number {
+  return Number(
     new Intl.DateTimeFormat("en-GB", { hour: "numeric", hour12: false, timeZone: "Asia/Kolkata" }).format(
       new Date(),
     ),
   );
+}
+
+/** The demo week's weekday + the current IST clock, mapped to a teaching period (or the next one). */
+function liveSlot(): { day: string; period: number; isLive: boolean } {
+  const weekday = demoToday().weekday;
+  const hour = istHour();
   const day = (DAYS as readonly string[]).includes(weekday) ? weekday : "MON";
   const p = periodForHour(hour);
   if (p !== null && p <= 9 && day === weekday) return { day, period: p, isLive: true };
@@ -66,17 +81,38 @@ export default async function DashboardPage({
     .from(schema.proposals)
     .where(and(eq(schema.proposals.status, "pending")));
   const pending = (pendingBookings?.n ?? 0) + (pendingProposals?.n ?? 0);
+  const history = ds
+    ? (
+        await db
+          .select({ report: schema.timetableVersions.report })
+          .from(schema.timetableVersions)
+          .where(eq(schema.timetableVersions.datasetRef, ds.id))
+          .orderBy(asc(schema.timetableVersions.createdAt))
+          .limit(24)
+      ).map((r) => (r.report as Report).soft_total)
+    : [];
+  const today = demoToday();
+  const numbers = ds && version ? weekNumbers(ds.json, version.schedule, version.report) : null;
 
   return (
     <>
-      <PageHeader
-        title="Dashboard"
-        description={
-          ds
-            ? `${user.name} · ${ds.datasetId}${version ? ` · version #${version.id}, ${timeAgo(version.createdAt)}` : ""}`
-            : "No dataset loaded"
+      <DashboardHero
+        name={user.name}
+        hour={istHour()}
+        demoDate={today.date}
+        weekday={today.weekday}
+        grade={version ? qualityGrade(version.report.hard_violation_count, version.report.soft_total) : null}
+        perDay={numbers?.perDay ?? null}
+        actions={
+          <div className="flex flex-col items-start gap-1.5 md:items-end">
+            <EngineStatus />
+            <span className="text-[11px] text-gray-8">
+              {ds
+                ? `${ds.datasetId}${version ? ` · version #${version.id}, ${timeAgo(version.createdAt)}` : ""}`
+                : "No dataset loaded"}
+            </span>
+          </div>
         }
-        actions={<EngineStatus />}
       />
       {sp.denied ? (
         <p
@@ -112,6 +148,7 @@ export default async function DashboardPage({
           facultyId={user.facultyId}
           canApprove={user.role === "admin" || user.role === "dept_coordinator"}
           activity={activity.map((a) => ({ id: a.id, action: a.action, at: a.at }))}
+          history={history}
         />
       )}
     </>
@@ -126,6 +163,7 @@ function Console({
   facultyId,
   canApprove,
   activity,
+  history,
 }: {
   ds: Dataset;
   schedule: Schedule;
@@ -134,6 +172,7 @@ function Console({
   facultyId: string | null;
   canApprove: boolean;
   activity: { id: number; action: string; at: Date }[];
+  history: number[];
 }) {
   const live = liveSlot();
   const slots: Record<string, SlotInfo> = {};
@@ -159,18 +198,31 @@ function Console({
       }
     : null;
   const fit = seatFit(ds, schedule);
+  const delta = history.length > 1 ? (history.at(-1) ?? 0) - (history.at(-2) ?? 0) : null;
   const b = report.bookings;
 
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-4">
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+      <div data-tour="kpis" className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         <Kpi
           label="Hard violations"
           value={report.hard_violation_count}
           tone={report.hard_violation_count === 0 ? "ok" : "bad"}
           hint={report.hard_violation_count === 0 ? "All 14 rules hold" : "Needs attention"}
+          seal={report.hard_violation_count === 0}
         />
-        <Kpi label="Soft penalty" value={report.soft_total} hint="Lower is kinder" />
+        <Kpi
+          label="Soft penalty"
+          value={report.soft_total}
+          hint={
+            delta === null
+              ? "Lower is kinder"
+              : delta === 0
+                ? "Same as last version"
+                : `${delta > 0 ? "+" : ""}${delta} vs last version`
+          }
+          spark={history}
+        />
         <Kpi
           label="Booking score"
           value={b?.booking_score ?? "–"}
@@ -192,8 +244,15 @@ function Console({
         />
       </div>
 
+      <WeekNumbers
+        n={weekNumbers(ds, schedule, report)}
+        approvalRate={b ? b.approved / Math.max(1, b.approved + b.alternatives + b.rejected) : null}
+      />
+
       <div className="grid grid-cols-[minmax(0,1fr)] gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
-        <NowPanel slots={slots} live={live} next={next} />
+        <div data-tour="now" className="min-w-0">
+          <NowPanel slots={slots} live={live} next={next} />
+        </div>
         <ConstraintMonitor report={report} />
       </div>
 
@@ -237,6 +296,8 @@ function Kpi({
   hint,
   tone,
   href,
+  spark,
+  seal,
 }: {
   label: string;
   value: number | string;
@@ -244,9 +305,11 @@ function Kpi({
   hint?: string;
   tone?: "ok" | "bad" | "accent";
   href?: string;
+  spark?: number[];
+  seal?: boolean;
 }) {
   const body = (
-    <Card className={cn("h-full min-w-0 p-4", href && "transition-colors hover:border-accent")}>
+    <Card className={cn("kpi relative h-full min-w-0 overflow-hidden p-4", href && "hover:border-accent")}>
       <p className="truncate text-[12px] text-gray-9">{label}</p>
       <p className="mt-1.5 flex items-baseline gap-1">
         <span
@@ -262,6 +325,24 @@ function Kpi({
         {suffix ? <span className="tabular text-[13px] text-gray-8">{suffix}</span> : null}
       </p>
       {hint ? <p className="mt-2 truncate text-[11px] text-gray-8">{hint}</p> : null}
+      {seal ? (
+        <span
+          aria-hidden
+          className="kpi-seal absolute top-3 right-3 grid size-7 place-items-center rounded-full bg-ok-soft text-ok"
+        >
+          <svg viewBox="0 0 16 16" className="size-3.5">
+            <path
+              d="M3.5 8.5l3 3 6-7"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </span>
+      ) : null}
+      {spark && spark.length > 1 ? <Spark values={spark} /> : null}
     </Card>
   );
   return href ? (
@@ -273,11 +354,35 @@ function Kpi({
   );
 }
 
+/** Tiny trend line pinned to the tile's corner. */
+function Spark({ values }: { values: number[] }) {
+  const w = 64;
+  const h = 22;
+  const max = Math.max(...values);
+  const min = Math.min(...values);
+  const span = Math.max(1, max - min);
+  const pts = values.map(
+    (v, i) => `${(i / (values.length - 1)) * w},${h - 2 - ((v - min) / span) * (h - 4)}`,
+  );
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} className="absolute top-3.5 right-3 h-[22px] w-16" aria-hidden>
+      <polyline
+        points={pts.join(" ")}
+        fill="none"
+        stroke="var(--accent)"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
+      <circle cx={pts.at(-1)?.split(",")[0]} cy={pts.at(-1)?.split(",")[1]} r="2.2" fill="var(--accent)" />
+    </svg>
+  );
+}
+
 function ConstraintMonitor({ report }: { report: Report }) {
   const soft = Object.entries(report.soft_penalties);
   const maxSoft = Math.max(1, ...soft.map(([, v]) => v));
   return (
-    <Card className="min-w-0">
+    <Card data-tour="rules" className="min-w-0">
       <CardHeader
         title="Constraint monitor"
         description="Checked by the deterministic engine on every change"

@@ -7,6 +7,7 @@ Campus scheduling and venue management for Chilika Institute of Technology (CIT 
 - Decides every Spectra-week booking by the priority rules, with a reason for each.
 - Repairs the timetable after a change (faculty leave, room closure, new session) while moving as few sessions as possible. It shows exactly what changed and applies the fix only after an Admin approves.
 - Runs as an operations console: live constraint monitor, a "right now" view, load analytics, a resilience scan and version history.
+- Guides newcomers: an optional step-by-step tour that spotlights each part of the app, and **Iru**, a chat guide that answers "where do I…?" and takes you there.
 
 Every result passes one deterministic checker that reproduces the official validator's results exactly. **AI reads and explains; code decides.**
 
@@ -86,8 +87,9 @@ flowchart LR
 
 | | Admin | Dept coordinator | Faculty | Club rep |
 | --- | :-: | :-: | :-: | :-: |
-| Dashboard: KPIs, engine status, constraint monitor, "right now" slot explorer, peak hours, faculty load, student day-load, Spectra split, room heatmap | ✓ | ✓ | ✓ | ✓ |
-| Timetables by group / faculty / room, "Why here?" explanations, ⌘K jump | ✓ | ✓ | ✓ | ✓ |
+| Dashboard: greeting with quality grade and midsem countdown, KPIs with trend, "week in numbers" (8 stats), engine status, constraint monitor, "right now" slot explorer, peak hours, faculty load, student day-load, Spectra split, room heatmap | ✓ | ✓ | ✓ | ✓ |
+| Guided tour (optional, step by step, highlights each part with "what it is / your task") and Iru, the chat guide | ✓ | ✓ | ✓ | ✓ |
+| Timetables by group / faculty / room, "Why here?" explanations, ⌘K jump, **Add to calendar (.ics)** | ✓ | ✓ | ✓ | ✓ |
 | Midsem exams view (exam week grid, group filter, half-capacity seats) | ✓ | ✓ | ✓ | ✓ |
 | Find a room; book a venue (AI or manual form, live conflict check); my requests | ✓ | ✓ | ✓ | ✓ |
 | Spectra week board (every decision and reason) | ✓ | ✓ | ✓ | ✓ |
@@ -103,6 +105,8 @@ flowchart LR
 Nobody can approve their own request. This is enforced in code and by a DB check constraint. Engine-generated disruption fixes are authored by a "Scheduling engine" system user, so the uploading Admin can approve them.
 
 ## Architecture
+
+Full write-up with flow diagrams: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ```
  Browser ─► Next.js 16 (web/)                                    Python engine (engine/)
@@ -131,6 +135,7 @@ Nobody can approve their own request. This is enforced in code and by a DB check
 | Booking request → editable form | `openai/gpt-oss-20b`, strict JSON schema | Zod-validated, then normalised by code. Explicit clock times are re-mapped by code. Named rooms are checked (SH-2 not accessible → SH-1 suggested; "LHC-5" → "did you mean LH-5?"). Category capped by role. The engine decides availability. |
 | Faculty change assistant | `openai/gpt-oss-120b`, tool calling | Read-only tools plus `propose_change`. Operations are scope-checked (own sessions only) and evaluated by the engine. An Admin approves. |
 | "Why here?" wording | `openai/gpt-oss-20b` | Only rewords engine facts; the facts stay visible |
+| **Iru**, the navigator | `openai/gpt-oss-20b` (`NAVIGATOR_MODEL`) | Two tools only: open a page from the user's allowed site map (re-checked in code) or start the tour. Per-user rate limit. An offline keyword guide answers with no key, when rate-limited, or on errors. |
 
 If AI is down (no key, timeout, rate limit), the deterministic English and Hinglish parser fills the form and a banner says so. The homepage runs that same parser in the browser as a live demo. Full declaration: [AI_USAGE.md](AI_USAGE.md).
 
@@ -206,6 +211,7 @@ Optional: `render.com` can also host the web app as a mirror with start command 
 
 ## Judge walkthrough (about 5 minutes)
 
+0. **New here?** After signing in, accept the optional **tour**, or press the compass button any time. It walks through every page with "what it is" and "your task". Or ask **Iru** (bottom-right), e.g. "where do I book the auditorium?".
 1. **Homepage → Admin.** One click signs you in.
 2. **Generate → Generate timetable.** It runs on a 4-CPU GitHub Actions runner; allow about a minute for start-up. Then open **Dashboard**: 0 hard violations, constraint monitor all green, peak hours, loads.
 3. **Timetables.** Switch Group, Faculty or Room, or press ⌘K / Ctrl+K and type a name. Click a class, then **Why here?**.
@@ -221,13 +227,19 @@ Optional: `render.com` can also host the web app as a mirror with start command 
 ```
 engine/          FastAPI + OR-Tools: app/{dataset,checker,timetable,exams,bookings,repair,resilience,explain,changes,export,jobs,main}.py,
                  relay_worker.py (GitHub Actions side of the relay), modal_app.py (optional host), tests/
-web/             Next.js: src/app (pages + API routes), src/components (shell, dashboard, landing, timetable, workflow),
-                 src/server (db, auth, engine client, relay, ai, workflows), src/lib (schemas, parser, insights)
+web/             Next.js: src/app (pages + API routes), src/components (shell, dashboard, guide, landing, timetable, workflow),
+                 src/server (env, db, auth, engine client, relay, ai, workflows), src/lib (sitemap, tour, schemas, parser, insights, ics)
+docs/            ARCHITECTURE.md (layers, flows, endpoints, security, tests)
 .github/         workflows/engine-relay.yml (solver relay)
 starter/         organiser starter pack, unmodified
 exports/         schedule.json, schedule_after.json (generated by scripts/generate_exports.py)
 scripts/         generate_exports.py
 ```
+
+## Team and credits
+
+- **Sai Ram Dash** is the project lead. They set the direction and feature list, made every product, design and platform decision, created the accounts, approved each deployment, and reviewed and tested the app against the problem statement.
+- Implementation was AI-assisted with Claude Code, under that direction. Exactly what the AI did, which models the product calls, and what the AI may not decide are all in [AI_USAGE.md](AI_USAGE.md). Third-party libraries and services are in [THIRD_PARTY.md](THIRD_PARTY.md).
 
 ## Known limitations
 

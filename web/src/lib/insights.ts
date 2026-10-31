@@ -151,3 +151,59 @@ export function seatFit(ds: Dataset, schedule: Schedule) {
   const avg = fits.length ? fits.reduce((a, b) => a + b, 0) / fits.length : 0;
   return { buckets, avg, total: fits.length };
 }
+
+/** Headline numbers for the dashboard's "week in numbers" strip. */
+export function weekNumbers(
+  ds: Dataset,
+  schedule: Schedule,
+  report: { soft_penalties: Record<string, number> },
+) {
+  const all = placed(ds, schedule);
+  const hours = all.reduce((n, p) => n + p.dur, 0);
+  const teachingRooms = ds.rooms.filter((r) => r.allowed_uses.some((u) => u === "lecture" || u === "lab"));
+  const roomIds = new Set(teachingRooms.map((r) => r.id));
+  const usedRoomPeriods = all.filter((p) => roomIds.has(p.room)).reduce((n, p) => n + p.dur, 0);
+  const fac = facultyLoad(ds, schedule);
+  const baskets = new Set(ds.sessions.map((s) => s.basket_slot).filter(Boolean));
+  const labs = all.filter((p) => p.kind === "lab").length;
+  const early = all.filter((p) => p.start === 1).length;
+  const late = all.filter((p) => p.start + p.dur - 1 === 9).length;
+  const perDay = Object.fromEntries(DAYS.map((d) => [d, 0])) as Record<string, number>;
+  for (const p of all) perDay[p.day] = (perDay[p.day] ?? 0) + p.dur;
+
+  const examRows = schedule.exams ?? [];
+  const exams = new Map(ds.exams.map((e) => [e.id, e]));
+  const rooms = new Map(ds.rooms.map((r) => [r.id, r.capacity]));
+  let examStudents = 0;
+  let examSeats = 0;
+  const examSlots = new Set<string>();
+  for (const x of examRows) {
+    examStudents += exams.get(x.exam_id)?.size ?? 0;
+    examSeats += x.rooms.reduce((n, id) => n + Math.floor((rooms.get(id) ?? 0) / 2), 0);
+    examSlots.add(`${x.day}|${x.session}`);
+  }
+
+  return {
+    sessions: { placed: all.length, total: ds.sessions.length },
+    hours,
+    occupancy: teachingRooms.length ? usedRoomPeriods / (teachingRooms.length * 45) : 0,
+    facultyWithinLimit: fac.filter((f) => f.peak <= f.limit).length,
+    facultyTotal: fac.length,
+    idleGaps: report.soft_penalties.S2 ?? 0,
+    baskets: baskets.size,
+    labs,
+    early,
+    late,
+    perDay,
+    exams: { count: examRows.length, slots: examSlots.size, fill: examSeats ? examStudents / examSeats : 0 },
+  };
+}
+
+/** A friendly letter grade for the timetable, derived only from the checker's numbers. */
+export function qualityGrade(hard: number, soft: number): { grade: string; label: string } {
+  if (hard > 0) return { grade: "!", label: "Has clashes" };
+  if (soft <= 5) return { grade: "A+", label: "Excellent" };
+  if (soft <= 15) return { grade: "A", label: "Very good" };
+  if (soft <= 30) return { grade: "B", label: "Good" };
+  return { grade: "C", label: "Valid, room to improve" };
+}
