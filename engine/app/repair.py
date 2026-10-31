@@ -33,7 +33,8 @@ from .checker import (
 )
 from .dataset import Dataset
 from .export import build_schedule
-from .timetable import ProgressFn, SolveOptions, solve_timetable
+from .explain import explain_unplaceable
+from .timetable import EventOption, ProgressFn, SolveOptions, solve_timetable
 
 
 def broken_sessions(ds: Dataset, assign: Assignment) -> tuple[list[str], list[dict]]:
@@ -97,16 +98,21 @@ def repair(
     workers: int = 8,
     on_progress: ProgressFn | None = None,
     team: str | None = None,
+    restrict: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
+    """Minimal-change repair. ``restrict`` forces sessions into given days/starts/rooms
+    (e.g. a faculty request "move my lab to Friday")."""
     t0 = time.monotonic()
+    restrict = {k: v for k, v in (restrict or {}).items() if k in ds_after.sessions}
     base_all, _ = assignment_from_schedule(baseline_doc)
     # Sessions removed by the change file disappear; everything else starts where it was.
     base = {sid: p for sid, p in base_all.items() if sid in ds_after.sessions}
     added = sorted(sid for sid in ds_after.sessions if sid not in base)
     removed = sorted(sid for sid in base_all if sid not in ds_after.sessions)
     broken, violations = broken_sessions(ds_after, base)
+    unmet = sorted(sid for sid, r in restrict.items() if sid in base and not _satisfies(base[sid], r))
 
-    if not broken and not added:
+    if not broken and not added and not unmet:
         new_assign = dict(base)
         status = "unchanged"
         diagnostics: list[str] = []
@@ -117,13 +123,16 @@ def repair(
             baseline=base,
             hint=base,
             optimize=True,
-            event_options=reservation_options(ds_after),
+            event_options=_keep_bookings(ds_after, baseline_doc) or reservation_options(ds_after),
+            restrict=restrict,
         )
         res = solve_timetable(ds_after, opts, on_progress=on_progress)
         if not res.ok:
             return {
                 "status": "infeasible" if res.status == "infeasible" else res.status,
-                "diagnostics": res.diagnostics or ["No valid timetable satisfies the changed constraints."],
+                "diagnostics": diagnose(ds_after, base, restrict, workers=workers, time_limit_s=min(30.0, time_limit_s))
+                or res.diagnostics
+                or ["No valid timetable satisfies the changed constraints."],
                 "broken_before": broken,
                 "violations_before": violations,
                 "added": added,
@@ -156,6 +165,8 @@ def repair(
             row["why"] = "New session from the change file"
         elif row["kind"] == "removed":
             row["why"] = "Removed by the change file"
+        elif row["session_id"] in restrict:
+            row["why"] = "Requested move"
         elif row["session_id"] in broken:
             row["why"] = _why_moved(row["session_id"], violations)
         else:
@@ -182,6 +193,54 @@ def repair(
         "diagnostics": diagnostics,
         "wall_time_s": round(time.monotonic() - t0, 2),
     }
+
+
+def _satisfies(p, r: dict[str, Any]) -> bool:
+    day, start, room = p
+    return (
+        (not r.get("days") or day in r["days"])
+        and (not r.get("starts") or start in r["starts"])
+        and (not r.get("rooms") or room in r["rooms"])
+    )
+
+
+def _keep_bookings(ds: Dataset, baseline_doc: dict[str, Any]) -> list[EventOption]:
+    """Existing Spectra placements become fixed options worth keeping (but never worth a move)."""
+    out = []
+    for d in (baseline_doc.get("fest_week") or {}).get("bookings", []):
+        if d.get("status") in ("approved", "alternative_offered") and d.get("room_id") in ds.rooms:
+            req = ds.requests.get(d["request_id"], {})
+            out.append(EventOption(
+                key=d["request_id"], room_id=d["room_id"], day=d["day"], start=d["start_period"],
+                end=d["end_period"], value=300, mandatory_groups=tuple(req.get("mandatory_for_groups", [])),
+            ))
+    return out
+
+
+def diagnose(
+    ds: Dataset, base: Assignment, restrict: dict[str, dict[str, Any]], *, workers: int, time_limit_s: float
+) -> list[str]:
+    """Explain an infeasible repair: which sessions cannot be placed, and what blocks them.
+
+    Re-solves allowing sessions to stay unplaced at a large cost (fewest
+    unplaced first, then fewest moves), then traces each unplaced session
+    against the rest of that near-solution with :func:`explain_unplaceable`.
+    """
+    opts = SolveOptions(
+        time_limit_s=time_limit_s, workers=workers, optimize=False, allow_unplaced=True,
+        baseline=base, hint=base, restrict=restrict, feasibility_time_s=time_limit_s,
+    )
+    res = solve_timetable(ds, opts)
+    if not res.ok:
+        return []
+    missing = sorted(sid for sid in ds.sessions if sid not in res.assignment)
+    if not missing:
+        return []
+    out = [f"No valid fix exists: {len(missing)} session(s) cannot be placed without breaking a hard rule."]
+    for sid in missing[:5]:
+        r = restrict.get(sid, {})
+        out.append(explain_unplaceable(ds, res.assignment, sid, days=r.get("days"), starts=r.get("starts")))
+    return out
 
 
 def _why_moved(sid: str, violations: list[dict]) -> str:

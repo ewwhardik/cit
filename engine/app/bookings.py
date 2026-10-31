@@ -25,7 +25,7 @@ from typing import Any, Iterable
 from ortools.sat.python import cp_model
 
 from .checker import Assignment, check_bookings, check_timetable
-from .dataset import CATEGORY_WEIGHT, LAST_EVENT_PERIOD, Dataset, periods_of
+from .dataset import CATEGORY_WEIGHT, LAST_EVENT_PERIOD, LAST_TEACHING_PERIOD, Dataset, periods_of
 from .timetable import EventOption
 
 CATEGORY_LABEL = {
@@ -244,17 +244,27 @@ def reservation_options(ds: Dataset, *, scale: int = 20) -> list[EventOption]:
 
 
 # ------------------------------------------------------------------ allocate
-def allocate_bookings(
-    ds: Dataset, week_assign: Assignment, *, time_limit_s: float = 10.0, workers: int = 8
-) -> dict[str, Any]:
-    """Decide every request. Returns ``{"fest_week": {...}, "decisions": [...], "report": {...}}``."""
+def _solve_allocation(
+    ds: Dataset,
+    week_assign: Assignment,
+    *,
+    forced: dict[str, Option] | None = None,
+    time_limit_s: float,
+    workers: int,
+) -> tuple[dict[str, Option], WeekState, dict[str, int], str]:
     week = WeekState.from_assignment(ds, week_assign)
     active = [r for rid, r in ds.requests.items() if rid not in ds.cancelled]
     ranking = priority_ranking(ds, active)
     rank_of = {rid: i for i, rid in enumerate(ranking)}
     n = len(ranking)
+    forced = forced or {}
 
-    options: dict[str, list[Option]] = {r["id"]: generate_options(ds, r, week) for r in active}
+    options: dict[str, list[Option]] = {}
+    for r in active:
+        opts = generate_options(ds, r, week)
+        if r["id"] in forced:
+            opts = [o for o in opts if o == forced[r["id"]]] or opts
+        options[r["id"]] = opts
     m = cp_model.CpModel()
     lit: dict[Option, cp_model.IntVar] = {}
     cell: dict[tuple[str, str, int], list] = defaultdict(list)
@@ -268,6 +278,8 @@ def allocate_bookings(
                 cell[(opt.room_id, opt.day, p)].append(v)
         if lits:
             m.AddAtMostOne(lits)
+        if req["id"] in forced and forced[req["id"]] in lit:
+            m.Add(lit[forced[req["id"]]] == 1)
     for lits in cell.values():
         if len(lits) > 1:
             m.AddAtMostOne(lits)
@@ -282,19 +294,166 @@ def allocate_bookings(
         for o, v in lit.items():
             if solver.Value(v):
                 chosen[o.req_id] = o
+    return chosen, week, rank_of, solver.StatusName(status).lower()
 
-    decisions = [
-        _decide(ds, req, chosen, week, rank_of)
-        for req in ds.requests.values()
-    ]
-    fest = {"bookings": [d.export() for d in decisions], "session_overrides": []}
-    violations, warnings, stats = check_bookings(ds, week_assign, fest)
+
+def allocate_bookings(
+    ds: Dataset,
+    week_assign: Assignment,
+    *,
+    time_limit_s: float = 10.0,
+    workers: int = 8,
+    allow_overrides: bool = True,
+) -> dict[str, Any]:
+    """Decide every request. Returns ``{"fest_week": {...}, "decisions": [...], "report": {...}}``.
+
+    If an institute event cannot get a slot inside its window only because
+    regular classes are there, those classes are moved for Week 7 (never
+    dropped) via ``session_overrides``, and the whole week is re-checked.
+    """
+    chosen, week, rank_of, status = _solve_allocation(ds, week_assign, time_limit_s=time_limit_s, workers=workers)
+    overrides: list[dict[str, Any]] = []
+    week_used = week_assign
+    if allow_overrides:
+        found, forced, moved_week = find_overrides(ds, week_assign, chosen, week)
+        if found:
+            chosen2, week2, rank2, status2 = _solve_allocation(
+                ds, moved_week, forced=forced, time_limit_s=time_limit_s, workers=workers
+            )
+            trial = _finish(ds, week_assign, chosen2, week2, rank2, found)
+            if not trial["report"]["violations"] and all(
+                chosen2.get(k) == v for k, v in forced.items()
+            ):
+                trial["solver_status"] = status2
+                return trial
+    result = _finish(ds, week_assign, chosen, week, rank_of, overrides)
+    result["solver_status"] = status
+    return result
+
+
+def _finish(ds, base_assign, chosen, week, rank_of, overrides) -> dict[str, Any]:
+    decisions = [_decide(ds, req, chosen, week, rank_of) for req in ds.requests.values()]
+    for d in decisions:
+        moved = [o for o in overrides if o["displaced_by"] == d.request_id]
+        if moved and d.status == "approved":
+            d.reason += " To make room, " + "; ".join(
+                f"{o['session_id']} moves to {o['day']} P{o['start_period']} in {o['room_id']}" for o in moved
+            ) + " for Week 7 only (classes are moved, never cancelled)."
+    fest = {"bookings": [d.export() for d in decisions], "session_overrides": overrides}
+    violations, warnings, stats = check_bookings(ds, base_assign, fest)
     return {
         "fest_week": fest,
         "decisions": [d.__dict__ for d in decisions],
-        "solver_status": solver.StatusName(status).lower(),
         "report": {"violations": violations, "warnings": warnings, **stats},
     }
+
+
+def find_overrides(
+    ds: Dataset, week_assign: Assignment, chosen: dict[str, Option], week: WeekState
+) -> tuple[list[dict[str, Any]], dict[str, Option], Assignment]:
+    """Displace regular sessions so unplaced institute events fit inside their windows.
+
+    Only sessions block the chosen slot (no other booking, no maintenance, no
+    mandatory-group clash). Each displaced session moves to the closest valid
+    Week-7 placement: another room at the same time, then the same day, then
+    any day. Basket and fixed-slot sessions may only change room.
+    """
+    from .checker import PlacementChecker  # local import: checker is light, avoids cycles
+
+    active = [r for rid, r in ds.requests.items() if rid not in ds.cancelled]
+    order = priority_ranking(ds, active)
+    assign = dict(week_assign)
+    overrides: list[dict[str, Any]] = []
+    forced: dict[str, Option] = {}
+    taken: dict[tuple[str, str, int], str] = {}
+    for o in chosen.values():
+        for p in o.periods:
+            taken[(o.room_id, o.day, p)] = o.req_id
+
+    for req_id in order:
+        req = ds.requests[req_id]
+        if ds.effective_category(req) != "institute_event":
+            continue
+        if chosen.get(req_id) and chosen[req_id].approved:
+            continue
+        rooms, _ = suitable_rooms(ds, req)
+        done = False
+        for day, a, b in window_positions(req):
+            for rid in rooms:
+                cells = [(rid, day, p) for p in range(a, b + 1)]
+                if any((day, p) in ds.room_blocked[rid] for p in range(a, b + 1)):
+                    continue
+                if any(taken.get(c) not in (None, req_id) for c in cells):
+                    continue
+                state = WeekState.from_assignment(ds, assign)
+                if any(state.group_busy.get((g, day, p)) for g in req.get("mandatory_for_groups", []) for p in range(a, b + 1)):
+                    continue
+                blockers = sorted({sid for c in cells for sid in state.room_busy.get(c, [])})
+                if not blockers:
+                    continue
+                trial = dict(assign)
+                moves = []
+                for sid in blockers:
+                    spot = _relocate(ds, trial, sid, set(cells), taken, chosen, PlacementChecker)
+                    if spot is None:
+                        moves = None
+                        break
+                    trial[sid] = spot
+                    moves.append((sid, spot))
+                if moves is None:
+                    continue
+                assign = trial
+                for sid, (d2, p2, r2) in moves:
+                    overrides.append({"session_id": sid, "day": d2, "start_period": p2, "room_id": r2, "displaced_by": req_id})
+                opt = Option(req_id, rid, day, a, b, True)
+                forced[req_id] = opt
+                for c in cells:
+                    taken[c] = req_id
+                done = True
+                break
+            if done:
+                break
+    return overrides, forced, assign
+
+
+def _relocate(ds, assign, sid, event_cells, taken, chosen, checker_cls):
+    sess = ds.sessions[sid]
+    day0, p0, r0 = assign[sid]
+    others = {k: v for k, v in assign.items() if k != sid}
+    pc = checker_cls(ds, others)
+    pinned_time = bool(sess.get("basket_slot") or sess.get("fixed_slot"))
+    # Groups that must stay free for approved mandatory events.
+    mandatory_cells = set()
+    for o in chosen.values():
+        req = ds.requests[o.req_id]
+        for g in req.get("mandatory_for_groups", []):
+            for p in o.periods:
+                mandatory_cells.add((g, o.day, p))
+
+    def candidates():
+        rooms = sorted(ds.rooms, key=lambda r: ds.rooms[r]["capacity"])
+        yield from ((day0, p0, r) for r in rooms if r != r0)
+        if pinned_time:
+            return
+        for p in sorted(range(1, 10), key=lambda q: abs(q - p0)):
+            if p != p0:
+                yield from ((day0, p, r) for r in rooms)
+        for d in sorted(ds.days, key=lambda d: abs(ds.day_index[d] - ds.day_index[day0])):
+            if d != day0:
+                for p in range(1, 10):
+                    yield from ((d, p, r) for r in rooms)
+
+    for day, p, rid in candidates():
+        if p + sess["duration"] - 1 > LAST_TEACHING_PERIOD:
+            continue
+        covered = range(p, p + sess["duration"])
+        if any((rid, day, q) in event_cells or (rid, day, q) in taken for q in covered):
+            continue
+        if any((g, day, q) in mandatory_cells for g in sess["groups"] for q in covered):
+            continue
+        if not pc.check(sid, day, p, rid):
+            return (day, p, rid)
+    return None
 
 
 def _decide(ds: Dataset, req: dict, chosen: dict[str, Option], week: WeekState, rank_of: dict[str, int]) -> Decision:

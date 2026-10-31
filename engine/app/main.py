@@ -27,6 +27,8 @@ from .dataset import ChangeFileError, Dataset, apply_changes, load_json
 from .exams import solve_exams
 from .export import ExportRefused, build_schedule, export_checked
 from .jobs import JobRunner
+from .changes import evaluate_ops
+from .explain import explain_session
 from .repair import repair
 from .timetable import SolveOptions, solve_timetable
 
@@ -273,4 +275,39 @@ def disruptions_repair(req: RepairRequest) -> dict[str, Any]:
         return repair(ds, req.baseline, time_limit_s=req.time_limit_s, workers=SOLVER_WORKERS, on_progress=report)
 
     job = jobs.submit("repair", run)
+    return {"job_id": job.id}
+
+
+class ExplainRequest(DatasetInput):
+    schedule: dict[str, Any]
+    session_id: str
+    week7: bool = Field(default=False, description="Explain against the Week-7 view (with session overrides)")
+
+
+@app.post("/timetable/explain", dependencies=[Depends(require_secret)])
+def timetable_explain(req: ExplainRequest) -> dict[str, Any]:
+    """Slot-by-slot trace for one session: what blocks each start time, the best alternatives."""
+    ds = req.build()
+    if req.session_id not in ds.sessions:
+        raise HTTPException(status_code=404, detail=f"Unknown session {req.session_id}")
+    assign = _week_assignment(req.schedule) if req.week7 else assignment_from_schedule(req.schedule)[0]
+    return explain_session(ds, assign, req.session_id)
+
+
+class EvaluateRequest(DatasetInput):
+    baseline: dict[str, Any] = Field(description="Current approved schedule.json")
+    ops: list[dict[str, Any]] = Field(description="Structured change operations (see app/changes.py)")
+    time_limit_s: float = Field(default=45.0, ge=5, le=300)
+
+
+@app.post("/changes/evaluate", dependencies=[Depends(require_secret)])
+def changes_evaluate(req: EvaluateRequest) -> dict[str, Any]:
+    """Validate structured ops (from the AI assistant or a manual request) into a proposal job."""
+    ds = req.build()
+
+    def run(report):
+        return evaluate_ops(ds, req.baseline, req.ops, time_limit_s=req.time_limit_s,
+                            workers=SOLVER_WORKERS, on_progress=report)
+
+    job = jobs.submit("evaluate", run)
     return {"job_id": job.id}

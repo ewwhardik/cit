@@ -68,6 +68,13 @@ class SolveOptions:
     #: Optional event placements that compete with sessions for rooms and groups
     #: (used to leave space for Spectra-week bookings). Each placed option earns ``value``.
     event_options: list["EventOption"] = field(default_factory=list)
+    #: Per-session domain restrictions: sid -> {"days": [...], "starts": [...], "rooms": [...]}
+    #: (any key may be omitted). Used for "move my lab to Friday" style requests.
+    restrict: dict[str, dict[str, Any]] = field(default_factory=dict)
+    #: Allow units to stay unplaced at a large cost; used to diagnose infeasibility
+    #: ("which session cannot fit, and what blocks it").
+    allow_unplaced: bool = False
+    unplaced_weight: int = 100_000
 
 
 @dataclass(frozen=True)
@@ -118,6 +125,7 @@ class TimetableModel:
         self.y: dict[tuple[str, str], cp_model.IntVar] = {}
         self.t: dict[str, cp_model.IntVar] = {}
         self.rooms_of: dict[str, list[str]] = {}
+        self.unplaced: dict[str, cp_model.IntVar] = {}
         self.soft_terms: list[tuple[int, Any]] = []  # (weight, linear expr) - for reporting
         self.objective_terms: list[Any] = []
 
@@ -156,6 +164,11 @@ class TimetableModel:
                     continue
                 if pinned and (pinned[0], pinned[1]) != (day, p):
                     continue
+                r = self.opts.restrict.get(sid, {})
+                if r.get("days") and day not in r["days"]:
+                    continue
+                if r.get("starts") and p not in r["starts"]:
+                    continue
                 if any((day, q) in ds.faculty_blocked[s["faculty_id"]] for q in periods_of(p, dur)):
                     continue
                 out.append((day, p))
@@ -167,6 +180,9 @@ class TimetableModel:
         out = []
         for rid, r in self.ds.rooms.items():
             if pinned and pinned[2] != rid:
+                continue
+            allowed = self.opts.restrict.get(sid, {}).get("rooms")
+            if allowed and rid not in allowed:
                 continue
             if r["type"] not in s["room_types"] or r["capacity"] < s["size"]:
                 continue
@@ -196,14 +212,14 @@ class TimetableModel:
         for sid in sids:
             cs = set(self.candidate_starts(sid))
             starts = cs if starts is None else starts & cs
-            if not self.candidate_rooms(sid):
+            if not self.candidate_rooms(sid) and not self.opts.allow_unplaced:
                 s = ds.sessions[sid]
                 self.diagnostics.append(
                     f"{sid}: no room is a {'/'.join(s['room_types'])} with {s['size']}+ seats"
                     + (" and accessible" if s.get("needs_accessible") else "")
                 )
         ordered = [c for c in ((d, p) for d in ds.days for p in range(1, 10)) if c in (starts or set())]
-        if not ordered:
+        if not ordered and not self.opts.allow_unplaced:
             names = ", ".join(sids)
             self.diagnostics.append(
                 f"{names}: no valid start time (teaching hours, lunch, lab starts, fixed slot and faculty unavailability leave nothing)"
@@ -227,7 +243,14 @@ class TimetableModel:
                 v = m.NewBoolVar(f"x[{u.key},{c[0]}{c[1]}]")
                 self.x[(u.key, c)] = v
                 xs.append(v)
-            m.AddExactlyOne(xs)
+            gone = None
+            if self.opts.allow_unplaced:
+                gone = m.NewBoolVar(f"unplaced[{u.key}]")
+                self.unplaced[u.key] = gone
+                m.Add(sum(xs) + gone == 1)
+                self.objective_terms.append(self.opts.unplaced_weight * gone)
+            else:
+                m.AddExactlyOne(xs)
             t = m.NewIntVar(0, horizon, f"t[{u.key}]")
             m.Add(t == sum(self._time(*c) * self.x[(u.key, c)] for c in u.starts))
             self.t[u.key] = t
@@ -238,7 +261,10 @@ class TimetableModel:
                     v = m.NewBoolVar(f"y[{sid},{rid}]")
                     self.y[(sid, rid)] = v
                     ys.append(v)
-                m.AddExactlyOne(ys)
+                if gone is not None:
+                    m.Add(sum(ys) + gone == 1)
+                else:
+                    m.AddExactlyOne(ys)
 
     def covers(self, ukey: str, day: str, period: int) -> list[cp_model.IntVar]:
         """Start literals of unit ``ukey`` that make it occupy (day, period)."""
@@ -475,6 +501,8 @@ class TimetableModel:
         value = solver.Value if hasattr(solver, "Value") else solver.value
         out: Assignment = {}
         for u in self.units.values():
+            if u.key in self.unplaced and value(self.unplaced[u.key]):
+                continue
             start = next(c for c in u.starts if value(self.x[(u.key, c)]))
             for sid in u.sessions:
                 room = next(r for r in self.rooms_of[sid] if value(self.y[(sid, r)]))
