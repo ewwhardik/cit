@@ -179,6 +179,9 @@ export const proposals = pgTable(
     baseVersionId: integer("base_version_id").references(() => timetableVersions.id),
     disruptionId: integer("disruption_id").references(() => disruptions.id),
     diff: jsonb("diff").notNull(),
+    /** Change file applied to the dataset when the proposal is approved (may be empty). */
+    changes: jsonb("changes").notNull().default({ changes: [] }),
+    summary: jsonb("summary"),
     schedule: jsonb("schedule").notNull(),
     validation: jsonb("validation").notNull(),
     explanation: text("explanation"),
@@ -209,6 +212,7 @@ export const jobs = pgTable("jobs", {
   kind: text("kind").notNull(),
   status: text("status").notNull().default("running"),
   datasetRef: integer("dataset_ref").references(() => datasets.id, { onDelete: "cascade" }),
+  meta: jsonb("meta"),
   createdBy: text("created_by").references(() => user.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

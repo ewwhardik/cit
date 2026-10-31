@@ -80,6 +80,9 @@ export type DiffRow = {
 
 export type RepairResult = {
   status: string;
+  ops_summary?: string[];
+  changes?: unknown;
+  trace?: ExplainTrace;
   schedule?: Schedule;
   report?: Report;
   diff?: DiffRow[];
@@ -87,6 +90,19 @@ export type RepairResult = {
   broken_before: string[];
   diagnostics: string[];
   fest_note?: string | null;
+};
+
+export type ExplainTrace = {
+  session_id: string;
+  summary: string;
+  blocked_by: Record<string, number>;
+  free_start_times: number;
+  checked_start_times: number;
+  top_blockers: Record<string, string[]>;
+  current: { day: string; start_period: number; room_id: string; soft_contribution: Record<string, number> } | null;
+  options: { day: string; start_period: number; room_id: string; rooms: string[]; soft_delta: number | null }[];
+  slots: { day: string; start_period: number; ok: boolean; rule?: string; reason?: string; rooms?: string[] }[];
+  error?: string;
 };
 
 export type Blocker = { rule: string; reason: string; blockers: string[] };
@@ -111,6 +127,10 @@ export const engine = {
   allocate: (b: WithData & { schedule: Schedule }) => call<Record<string, unknown>>("/bookings/allocate", b),
   checkOne: (b: WithData & { schedule: Schedule; request: Record<string, unknown> }) =>
     call<Record<string, unknown>>("/bookings/check-one", b, { timeoutMs: 15_000 }),
+  explain: (b: WithData & { schedule: Schedule; session_id: string; week7?: boolean }) =>
+    call<ExplainTrace>("/timetable/explain", b, { timeoutMs: 20_000 }),
+  evaluate: (b: WithData & { baseline: Schedule; ops: unknown[]; time_limit_s?: number }) =>
+    call<{ job_id: string }>("/changes/evaluate", b),
   export: (b: WithData & { schedule: Schedule; baseline?: Schedule }) =>
     call<{ schedule: Schedule; report: Report }>("/export", b),
 };

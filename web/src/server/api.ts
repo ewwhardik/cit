@@ -2,6 +2,7 @@ import "server-only";
 import { NextResponse } from "next/server";
 import type { Role } from "./db/schema";
 import { EngineError } from "./engine";
+import { WorkflowError } from "./proposals";
 import { type CurrentUser, getCurrentUser } from "./session";
 
 export function jsonError(message: string, status: number, extra?: Record<string, unknown>) {
@@ -17,7 +18,11 @@ export async function guard(...roles: Role[]): Promise<CurrentUser | NextRespons
 }
 
 export function engineFailure(err: unknown) {
-  if (err instanceof EngineError)
-    return jsonError(err.message, err.status >= 500 ? 502 : err.status, { detail: err.detail });
+  if (err instanceof WorkflowError) return jsonError(err.message, err.status);
+  if (err instanceof EngineError) return jsonError(err.message, err.status >= 500 ? 502 : err.status, { detail: err.detail });
   return jsonError((err as Error).message ?? "Unexpected error", 500);
+}
+
+export async function readJson<T = Record<string, unknown>>(req: Request): Promise<T> {
+  return (await req.json().catch(() => ({}))) as T;
 }

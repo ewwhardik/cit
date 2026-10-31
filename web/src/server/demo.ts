@@ -40,7 +40,24 @@ export const DEMO_USERS: {
   { email: "club.coding@cit.demo", name: "Coding Club", role: "club", clubName: "Coding Club" },
 ];
 
+/** Author of engine-generated proposals (disruption repairs). Has no password and cannot sign in. */
+export const SYSTEM_USER_ID = "system-scheduler";
+
+async function ensureSystemUser(db: DB) {
+  const existing = await db.query.user.findFirst({ where: eq(schema.user.id, SYSTEM_USER_ID) });
+  if (!existing) {
+    await db.insert(schema.user).values({
+      id: SYSTEM_USER_ID,
+      email: "scheduler@system.cit",
+      name: "Scheduling engine",
+      role: "admin",
+      emailVerified: true,
+    });
+  }
+}
+
 export async function ensureDemoUsers(db: DB, dataset?: Dataset) {
+  await ensureSystemUser(db);
   const password = await hashPassword(process.env.DEMO_PASSWORD ?? DEMO_PASSWORD_DEFAULT);
   for (const u of DEMO_USERS) {
     const name =
