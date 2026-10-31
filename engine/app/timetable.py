@@ -35,7 +35,7 @@ from typing import Any, Callable
 from ortools.sat.python import cp_model
 
 from .checker import Assignment, Placement
-from .dataset import LAST_TEACHING_PERIOD, Dataset, periods_of
+from .dataset import LAST_EVENT_PERIOD, LAST_TEACHING_PERIOD, Dataset, periods_of
 
 DAY_STRIDE = 20
 
@@ -65,6 +65,20 @@ class SolveOptions:
     reserve_cells: dict[tuple[str, str, int], int] = field(default_factory=dict)
     #: (group_id, day, period) cells to keep free if at all possible, with a weight each.
     reserve_group_cells: dict[tuple[str, str, int], int] = field(default_factory=dict)
+    #: Optional event placements that compete with sessions for rooms and groups
+    #: (used to leave space for Spectra-week bookings). Each placed option earns ``value``.
+    event_options: list["EventOption"] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class EventOption:
+    key: str  # request id; at most one option per key is chosen
+    room_id: str
+    day: str
+    start: int
+    end: int  # inclusive, may run past P9
+    value: int
+    mandatory_groups: tuple[str, ...] = ()
 
 
 @dataclass
@@ -111,9 +125,11 @@ class TimetableModel:
         if self.diagnostics:
             return
         self._build_vars()
+        self._event_vars()
         self._room_constraints()
         self._faculty_constraints()
         self._group_constraints()
+        self._event_group_constraints()
         if opts.optimize:
             self._soft_objective()
         self._reservations()
@@ -233,17 +249,45 @@ class TimetableModel:
             if d == day and p <= period < p + u.duration
         ]
 
+    def _event_vars(self) -> None:
+        self.event_lits: dict[EventOption, cp_model.IntVar] = {}
+        by_key: dict[str, list] = defaultdict(list)
+        for opt in self.opts.event_options:
+            if opt.room_id not in self.ds.rooms or opt.day not in self.ds.day_index:
+                continue
+            v = self.model.NewBoolVar(f"ev[{opt.key},{opt.room_id},{opt.day}{opt.start}]")
+            self.event_lits[opt] = v
+            by_key[opt.key].append(v)
+            self.objective_terms.append(-opt.value * v)
+        for lits in by_key.values():
+            self.model.AddAtMostOne(lits)
+
+    def _event_group_constraints(self) -> None:
+        for opt, v in self.event_lits.items():
+            for g in opt.mandatory_groups:
+                for p in range(opt.start, min(opt.end, LAST_TEACHING_PERIOD) + 1):
+                    lits = self.group_occ.get((g, opt.day, p), [])
+                    if lits:
+                        self.model.Add(v + sum(lits) <= 1)
+
+    def chosen_events(self, solver) -> list[EventOption]:
+        return [o for o, v in self.event_lits.items() if solver.Value(v)]
+
     # --------------------------------------------------------- constraints
     def _room_constraints(self) -> None:
         m, ds = self.model, self.ds
         per_room: dict[str, list] = defaultdict(list)
+        for opt, v in self.event_lits.items():
+            size = opt.end - opt.start + 1
+            t0 = self._time(opt.day, opt.start)
+            per_room[opt.room_id].append(m.NewOptionalIntervalVar(t0, size, t0 + size, v, f"evi[{opt.key}]"))
         for (sid, rid), lit in self.y.items():
             u = self.units[self.unit_of[sid]]
             iv = m.NewOptionalFixedSizeIntervalVar(self.t[u.key], u.duration, lit, f"iv[{sid},{rid}]")
             per_room[rid].append(iv)
         for rid, ivs in per_room.items():
             for day, p in sorted(ds.room_blocked.get(rid, ())):
-                if day in ds.day_index and 1 <= p <= LAST_TEACHING_PERIOD:
+                if day in ds.day_index and 1 <= p <= LAST_EVENT_PERIOD:
                     ivs.append(m.NewIntervalVar(self._time(day, p), 1, self._time(day, p) + 1, f"blk[{rid},{day}{p}]"))
             if len(ivs) > 1:
                 m.AddNoOverlap(ivs)
@@ -489,12 +533,13 @@ def solve_timetable(
 
     # Phase 1: feasibility only (no soft objective), unless a baseline/reservations
     # make the objective essential to the answer.
-    phase1_opts = SolveOptions(**{**opts.__dict__, "optimize": False, "reserve_cells": {}, "reserve_group_cells": {}, "baseline": None})
+    phase1_opts = SolveOptions(**{**opts.__dict__, "optimize": False, "reserve_cells": {}, "reserve_group_cells": {}, "event_options": [], "baseline": None})
     phase1_opts.hint = opts.hint or opts.baseline
     tm1 = TimetableModel(ds, phase1_opts)
     if tm1.diagnostics:
         return SolveResult("infeasible", {}, None, time.monotonic() - t0, tm1.diagnostics, {})
-    budget = opts.feasibility_time_s if (opts.optimize or opts.baseline or opts.reserve_cells) else opts.time_limit_s
+    needs_phase2 = bool(opts.optimize or opts.baseline or opts.reserve_cells or opts.reserve_group_cells or opts.event_options)
+    budget = opts.feasibility_time_s if needs_phase2 else opts.time_limit_s
     solver1, status1 = _run(tm1, budget, opts, on_progress, "feasibility")
     if status1 not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
         msg = (
@@ -504,7 +549,7 @@ def solve_timetable(
         )
         return SolveResult(_STATUS.get(status1, "unknown"), {}, None, time.monotonic() - t0, [msg], {})
     first = tm1.extract(solver1)
-    if not (opts.optimize or opts.baseline or opts.reserve_cells or opts.reserve_group_cells):
+    if not needs_phase2:
         return SolveResult(
             "feasible", first, None, time.monotonic() - t0, [],
             {"phase1_s": round(solver1.WallTime(), 2)},

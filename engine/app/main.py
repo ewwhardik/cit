@@ -21,11 +21,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from . import __version__
+from .bookings import allocate_bookings, check_one, reservation_options
 from .checker import PlacementChecker, assignment_from_schedule, full_report
 from .dataset import ChangeFileError, Dataset, apply_changes, load_json
 from .exams import solve_exams
 from .export import ExportRefused, build_schedule, export_checked
 from .jobs import JobRunner
+from .repair import repair
 from .timetable import SolveOptions, solve_timetable
 
 DEFAULT_DATASET = Path(
@@ -105,6 +107,20 @@ class GenerateRequest(DatasetInput):
     time_limit_s: float = Field(default=90.0, ge=5, le=600)
     seed: int = 7
     team: str = "CIT Crunch"
+    reserve_for_bookings: bool = True
+
+
+class BookingsRequest(DatasetInput):
+    schedule: dict[str, Any] = Field(description="Timetable to allocate around (sessions, optional fest_week overrides)")
+
+
+class CheckOneRequest(BookingsRequest):
+    request: dict[str, Any] = Field(description="A booking request in the dataset's booking_requests format")
+
+
+class RepairRequest(DatasetInput):
+    baseline: dict[str, Any] = Field(description="The approved schedule.json before the change")
+    time_limit_s: float = Field(default=60.0, ge=5, le=600)
 
 
 # ------------------------------------------------------------------ routes
@@ -143,7 +159,10 @@ def timetable_solve(req: SolveRequest) -> dict[str, Any]:
 def pipeline_generate(req: GenerateRequest) -> dict[str, Any]:
     """Timetable + exams in one background job; returns a full schedule.json and its report."""
     ds = req.build()
-    opts = SolveOptions(time_limit_s=req.time_limit_s, seed=req.seed, workers=SOLVER_WORKERS)
+    opts = SolveOptions(
+        time_limit_s=req.time_limit_s, seed=req.seed, workers=SOLVER_WORKERS,
+        event_options=reservation_options(ds) if req.reserve_for_bookings else [],
+    )
 
     def run(report):
         tt = solve_timetable(ds, opts, on_progress=report)
@@ -151,13 +170,17 @@ def pipeline_generate(req: GenerateRequest) -> dict[str, Any]:
             return {"status": tt.status, "diagnostics": tt.diagnostics, "schedule": None, "report": None}
         report({"phase": "exams", "elapsed_s": round(tt.wall_time_s, 2)})
         ex = solve_exams(ds, workers=SOLVER_WORKERS)
-        doc = build_schedule(ds, tt.assignment, exams=ex.rows, team=req.team)
+        report({"phase": "bookings", "elapsed_s": round(tt.wall_time_s, 2)})
+        bk = allocate_bookings(ds, tt.assignment, workers=SOLVER_WORKERS)
+        doc = build_schedule(ds, tt.assignment, exams=ex.rows, fest_week=bk["fest_week"], team=req.team)
         return {
             "status": tt.status if ex.status in ("optimal", "feasible") else ex.status,
             "schedule": doc,
             "report": full_report(ds, doc),
+            "decisions": bk["decisions"],
             "diagnostics": tt.diagnostics + ex.diagnostics,
-            "stats": {**tt.stats, "exam_status": ex.status, "exam_penalty": ex.penalty},
+            "stats": {**tt.stats, "exam_status": ex.status, "exam_penalty": ex.penalty,
+                      "booking_solver": bk["solver_status"]},
         }
 
     job = jobs.submit("generate", run)
@@ -210,3 +233,44 @@ def export(req: ExportRequest) -> dict[str, Any]:
             detail={"message": str(exc), "report": exc.report},
         ) from exc
     return {"schedule": schedule, "report": report}
+
+
+def _week_assignment(schedule: dict[str, Any]):
+    assign, _ = assignment_from_schedule(schedule)
+    for ov in (schedule.get("fest_week") or {}).get("session_overrides", []):
+        assign[ov["session_id"]] = (ov["day"], ov["start_period"], ov["room_id"])
+    return assign
+
+
+@app.post("/bookings/allocate", dependencies=[Depends(require_secret)])
+def bookings_allocate(req: BookingsRequest) -> dict[str, Any]:
+    ds = req.build()
+    return allocate_bookings(ds, _week_assignment(req.schedule), workers=SOLVER_WORKERS)
+
+
+REQUIRED_REQUEST_FIELDS = ("attendance", "duration_periods", "windows", "room_types")
+
+
+@app.post("/bookings/check-one", dependencies=[Depends(require_secret)])
+def bookings_check_one(req: CheckOneRequest) -> dict[str, Any]:
+    ds = req.build()
+    missing = [k for k in REQUIRED_REQUEST_FIELDS if not req.request.get(k)]
+    if missing:
+        raise HTTPException(status_code=422, detail=f"Request is missing {', '.join(missing)}")
+    booking = {"id": "NEW", "needs": [], "mandatory_for_groups": [], "role": "club",
+               "requested_category": "club_event", "submitted_at": "9999", **req.request}
+    existing = (req.schedule.get("fest_week") or {}).get("bookings", [])
+    return check_one(ds, _week_assignment(req.schedule), existing, booking)
+
+
+@app.post("/disruptions/repair", dependencies=[Depends(require_secret)])
+def disruptions_repair(req: RepairRequest) -> dict[str, Any]:
+    if not req.changes:
+        raise HTTPException(status_code=422, detail="A change file is required")
+    ds = req.build()
+
+    def run(report):
+        return repair(ds, req.baseline, time_limit_s=req.time_limit_s, workers=SOLVER_WORKERS, on_progress=report)
+
+    job = jobs.submit("repair", run)
+    return {"job_id": job.id}
