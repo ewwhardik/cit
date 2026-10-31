@@ -31,6 +31,7 @@ jobs:
         with:
           enable-cache: true
           cache-dependency-glob: engine/uv.lock
+          prune-cache: false
 
       - name: Install engine
         working-directory: engine
@@ -38,16 +39,19 @@ jobs:
 
       - name: Start engine
         working-directory: engine
-        run: nohup uv run --no-dev uvicorn app.main:app --host 127.0.0.1 --port 8000 > engine.log 2>&1 &
+        # Run from the venv directly so no uv process holds the cache lock in the background.
+        run: nohup .venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 > engine.log 2>&1 &
 
       - name: Run job
         working-directory: engine
         env:
           RELAY_BASE_URL: ${{ vars.RELAY_BASE_URL }}
           RELAY_JOB_ID: ${{ inputs.job }}
-        run: uv run --no-dev python relay_worker.py
+        run: .venv/bin/python relay_worker.py
 
       - name: Engine log
         if: always()
         working-directory: engine
-        run: tail -n 40 engine.log || true
+        run: |
+          tail -n 40 engine.log || true
+          pkill -f "uvicorn app.main:app" || true
