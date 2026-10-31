@@ -67,7 +67,10 @@ export function LiveParser({ ctx }: { ctx: ParseContext | null }) {
   return (
     <div className="grid gap-5 lg:grid-cols-[1.05fr_1fr]">
       <div className="lx-card flex flex-col gap-3 p-4 sm:p-5">
-        <label htmlFor="lx-req" className="text-[12px] font-medium tracking-wide text-[var(--lx-bone)]/50 uppercase">
+        <label
+          htmlFor="lx-req"
+          className="text-[12px] font-medium tracking-wide text-[var(--lx-bone)]/50 uppercase"
+        >
           Your request, in English or Hinglish
         </label>
         <textarea

@@ -48,11 +48,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <div className="md:grid md:min-h-dvh md:grid-cols-[232px_1fr]">
       <aside className="sticky top-0 hidden h-dvh flex-col gap-4 border-r border-gray-4 bg-gray-1 p-3 md:flex">
         <div className="flex items-center gap-2 px-1.5 pt-1">
-          <div className="grid size-7 place-items-center rounded-md bg-accent text-[12px] font-semibold text-accent-fg">
-            C
+          <div className="grid size-8 place-items-center rounded-[10px] bg-[#c6ff3d] font-display text-[12px] font-extrabold text-[#0c0a08]">
+            C/
           </div>
           <div className="min-w-0">
-            <p className="truncate text-[13px] font-semibold leading-tight">CIT Scheduler</p>
+            <p className="truncate font-display text-[14px] font-bold leading-tight tracking-tight">
+              CIT Scheduler
+            </p>
             <p className="truncate text-[11px] text-gray-9">{ds?.datasetId ?? "No dataset loaded"}</p>
           </div>
         </div>
@@ -71,10 +73,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       </aside>
 
       <header className="sticky top-0 z-20 flex h-14 items-center gap-2 border-b border-gray-4 bg-surface/95 px-4 backdrop-blur md:hidden">
-        <div className="grid size-7 place-items-center rounded-md bg-accent text-[12px] font-semibold text-accent-fg">
-          C
+        <div className="grid size-8 place-items-center rounded-[10px] bg-[#c6ff3d] font-display text-[12px] font-extrabold text-[#0c0a08]">
+          C/
         </div>
-        <p className="flex-1 truncate text-[14px] font-semibold">CIT Scheduler</p>
+        <p className="flex-1 truncate font-display text-[15px] font-bold tracking-tight">CIT Scheduler</p>
         <CommandMenu items={items} jumps={jumps} hotkeys={false} />
         <ThemeToggle />
         <SignOutButton />

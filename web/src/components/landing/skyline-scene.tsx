@@ -12,10 +12,6 @@ import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
-import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
-import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
-import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
-import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { clock, DAY_NAMES, KIND_COLOR, type Kind, type LandingBlock, periodHour } from "./types";
 
 const CELL = 1;
@@ -24,7 +20,6 @@ const ROW = 1.35;
 const LEVEL = 0.27;
 const BLOCK_H = 0.22;
 const WIDTH = 9 * CELL + LUNCH_GAP;
-const INK = "#0c0a08";
 const CLASH = new THREE.Color("#ff2d55");
 const IDLE = new THREE.Color("#6e655a");
 const DIM = new THREE.Color("#221d18");
@@ -122,7 +117,7 @@ export default function SkylineScene({ blocks, solved, visible, replay }: Props)
     }
     const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
     const small = matchMedia("(max-width: 767px)").matches;
-    renderer.setPixelRatio(Math.min(devicePixelRatio, small ? 1.5 : 1.75));
+    renderer.setPixelRatio(Math.min(devicePixelRatio, small ? 1.25 : 1.5));
     renderer.toneMapping = THREE.NeutralToneMapping;
     renderer.toneMappingExposure = 1;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -132,7 +127,6 @@ export default function SkylineScene({ blocks, solved, visible, replay }: Props)
     renderer.domElement.style.touchAction = "pan-y";
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(INK);
     const pmrem = new THREE.PMREMGenerator(renderer);
     const envTex = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
     scene.environment = envTex;
@@ -160,7 +154,9 @@ export default function SkylineScene({ blocks, solved, visible, replay }: Props)
     const disposables: { dispose(): void }[] = [envTex, pmrem];
     const baseGeo = new RoundedBoxGeometry(WIDTH + 1.6, 0.24, 5 * ROW + 0.8, 4, 0.12);
     const baseMat = new THREE.MeshPhysicalMaterial({
-      color: "#16120e",
+      color: "#17130f",
+      transparent: true,
+      opacity: 0.92,
       roughness: 0.55,
       metalness: 0.2,
       clearcoat: 0.6,
@@ -239,7 +235,7 @@ export default function SkylineScene({ blocks, solved, visible, replay }: Props)
     };
 
     for (const [dur, idx] of byDur) {
-      const geo = new RoundedBoxGeometry(dur * CELL - 0.12, BLOCK_H, ROW - 0.38, 4, 0.09);
+      const geo = new RoundedBoxGeometry(dur * CELL - 0.12, BLOCK_H, ROW - 0.38, 3, 0.09);
       disposables.push(geo);
       const mesh = new THREE.InstancedMesh(geo, blockMat, idx.length);
       mesh.castShadow = true;
@@ -310,7 +306,7 @@ export default function SkylineScene({ blocks, solved, visible, replay }: Props)
           p += normalize(d + 0.0001) * k * 1.2;
           vec4 mv = modelViewMatrix * vec4(p, 1.0);
           gl_Position = projectionMatrix * mv;
-          gl_PointSize = (2.0 + aSeed * 4.0) * uPx * (14.0 / -mv.z);
+          gl_PointSize = (3.0 + aSeed * 6.0) * uPx * (14.0 / -mv.z);
           vSeed = aSeed;
           vFade = smoothstep(0.0, 1.0, p.y) * (1.0 - smoothstep(5.5, 7.0, p.y));
         }`,
@@ -318,12 +314,14 @@ export default function SkylineScene({ blocks, solved, visible, replay }: Props)
         varying float vSeed; varying float vFade;
         void main(){
           float r = length(gl_PointCoord - 0.5);
-          float a = smoothstep(0.5, 0.0, r);
+          float core = smoothstep(0.18, 0.0, r);
+          float halo = smoothstep(0.5, 0.0, r) * 0.45;
+          float a = core + halo;
           vec3 ember = vec3(1.0, 0.36, 0.12);
           vec3 lime = vec3(0.78, 1.0, 0.24);
           vec3 bone = vec3(0.94, 0.9, 0.82);
           vec3 c = vSeed < 0.45 ? ember : vSeed < 0.7 ? lime : bone;
-          gl_FragColor = vec4(c * 1.6, a * vFade * 0.75);
+          gl_FragColor = vec4(c, a * vFade * 0.8);
         }`,
     });
     const points = new THREE.Points(pGeo, pMat);
@@ -331,16 +329,6 @@ export default function SkylineScene({ blocks, solved, visible, replay }: Props)
     disposables.push(pGeo, pMat);
     const floor = new THREE.Plane(new THREE.Vector3(0, 1, 0), -1.2);
     const hitFloor = new THREE.Vector3();
-
-    // Bloom on larger screens; phones render straight.
-    const composer = small ? null : new EffectComposer(renderer);
-    if (composer) {
-      const bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.32, 0.55, 0.92);
-      composer.addPass(new RenderPass(scene, camera));
-      composer.addPass(bloom);
-      composer.addPass(new OutputPass());
-      disposables.push(composer, bloom);
-    }
 
     // Camera framing adapts to the host's aspect.
     function frame(w: number, h: number) {
@@ -350,7 +338,7 @@ export default function SkylineScene({ blocks, solved, visible, replay }: Props)
       camera.position.set(dist * 0.5, dist * 0.62, dist * 0.74);
       camera.lookAt(0, 0.4, 0);
       // On wide screens the headline sits on the left, so slide the city to the right.
-      if (aspect >= 1.4) camera.setViewOffset(w, h, -w * 0.25, -h * 0.02, w, h);
+      if (aspect >= 1.4) camera.setViewOffset(w, h, -w * 0.25, -h * 0.1, w, h);
       else camera.clearViewOffset();
       camera.updateProjectionMatrix();
     }
@@ -358,7 +346,6 @@ export default function SkylineScene({ blocks, solved, visible, replay }: Props)
       const width = el.clientWidth;
       const height = el.clientHeight;
       renderer.setSize(width, height, false);
-      composer?.setSize(width, height);
       renderer.domElement.style.width = "100%";
       renderer.domElement.style.height = "100%";
       frame(width, height);
@@ -457,8 +444,7 @@ export default function SkylineScene({ blocks, solved, visible, replay }: Props)
         }
       }
       pUniforms.uTime.value = reduced ? 0 : now / 1000;
-      if (composer) composer.render();
-      else renderer.render(scene, camera);
+      renderer.render(scene, camera);
     }
     raf = requestAnimationFrame(tick);
 

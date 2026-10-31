@@ -3,6 +3,7 @@ import {
   Bot,
   CalendarDays,
   CircleCheckBig,
+  ClipboardList,
   Cpu,
   Database,
   Inbox,
@@ -17,6 +18,7 @@ import {
 const ICONS: Record<string, LucideIcon> = {
   layout: LayoutGrid,
   calendar: CalendarDays,
+  exams: ClipboardList,
   sparkles: Sparkles,
   database: Database,
   search: Search,

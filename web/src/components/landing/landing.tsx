@@ -53,6 +53,29 @@ const AGENTS: {
   },
 ];
 
+const AGENT_PALETTES = AGENTS.map((a) => a.palette);
+
+/** True once the element is within ~one screen of the viewport, so heavy 3D loads only when needed. */
+function useNear(ref: React.RefObject<HTMLElement | null>) {
+  const [near, setNear] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setNear(true);
+          io.disconnect();
+        }
+      },
+      { rootMargin: "100% 0px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [ref]);
+  return near;
+}
+
 const STEPS = [
   {
     n: "01",
@@ -82,6 +105,7 @@ export function Landing({ data, fontClass }: { data: LandingData; fontClass: str
   const agentsStage = useRef<HTMLElement>(null);
   const orbSlots = useRef<(HTMLElement | null)[]>([]);
   const activeAgent = useRef(-1);
+  const agentsNear = useNear(agentsStage);
   const kinds = (Object.keys(KIND_LABEL) as Kind[]).map((k) => ({
     k,
     n: data.blocks.filter((b) => b.kind === k).length,
@@ -258,12 +282,9 @@ export function Landing({ data, fontClass }: { data: LandingData; fontClass: str
         id="agents"
         className="relative z-10 mx-auto max-w-[1360px] px-4 py-20 sm:px-6 lg:py-28"
       >
-        <AgentsScene
-          stage={agentsStage}
-          slots={orbSlots}
-          palettes={AGENTS.map((a) => a.palette)}
-          active={activeAgent}
-        />
+        {agentsNear ? (
+          <AgentsScene stage={agentsStage} slots={orbSlots} palettes={AGENT_PALETTES} active={activeAgent} />
+        ) : null}
         <SectionHead
           index="02"
           eyebrow="AI helpers"

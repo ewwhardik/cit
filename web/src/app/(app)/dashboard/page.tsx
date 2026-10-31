@@ -1,20 +1,51 @@
-import { desc } from "drizzle-orm";
+import { and, count, desc, eq } from "drizzle-orm";
 import { CalendarX2 } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { EngineStatus } from "@/components/dashboard/engine-status";
+import { NowPanel, type SlotInfo } from "@/components/dashboard/now-panel";
 import { PageHeader } from "@/components/page-header";
 import { ReportCard } from "@/components/report/report-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty";
-import { DAYS } from "@/lib/time";
+import { timeAgo } from "@/lib/format";
+import { campusHeat, facultyLoad, groupLoad, HARD_RULES, nextFor, nowAt, seatFit } from "@/lib/insights";
+import type { Dataset } from "@/lib/schemas/dataset";
+import type { Report, Schedule } from "@/lib/schemas/schedule";
+import { DAYS, periodForHour, periodRange } from "@/lib/time";
 import { roomUtilisation } from "@/lib/timetable";
+import { cn } from "@/lib/utils";
+import { demoToday } from "@/server/ai/context";
 import { getActiveDataset, getCurrentVersion } from "@/server/data";
 import { db, schema } from "@/server/db";
 import { requireUser } from "@/server/session";
 
 export const metadata: Metadata = { title: "Dashboard" };
+
+const SOFT_LABEL: Record<string, string> = {
+  S1: "Faculty avoided slots",
+  S2: "Idle gaps for groups",
+  S3: "Groups over 6 h/day",
+  S4: "Same course twice a day",
+  S5: "Room under 40% full",
+  S6: "Classes at 17:00",
+};
+
+/** The demo week's weekday + the current IST clock, mapped to a teaching period (or the next one). */
+function liveSlot(): { day: string; period: number; isLive: boolean } {
+  const weekday = demoToday().weekday;
+  const hour = Number(
+    new Intl.DateTimeFormat("en-GB", { hour: "numeric", hour12: false, timeZone: "Asia/Kolkata" }).format(
+      new Date(),
+    ),
+  );
+  const day = (DAYS as readonly string[]).includes(weekday) ? weekday : "MON";
+  const p = periodForHour(hour);
+  if (p !== null && p <= 9 && day === weekday) return { day, period: p, isLive: true };
+  return { day, period: hour === 13 ? 6 : 1, isLive: false };
+}
 
 export default async function DashboardPage({
   searchParams,
@@ -26,14 +57,26 @@ export default async function DashboardPage({
   const ds = await getActiveDataset();
   const version = ds ? await getCurrentVersion(ds.id) : null;
   const activity = await db.query.auditLog.findMany({ orderBy: desc(schema.auditLog.at), limit: 8 });
+  const [pendingBookings] = await db
+    .select({ n: count() })
+    .from(schema.bookingRequests)
+    .where(eq(schema.bookingRequests.status, "pending"));
+  const [pendingProposals] = await db
+    .select({ n: count() })
+    .from(schema.proposals)
+    .where(and(eq(schema.proposals.status, "pending")));
+  const pending = (pendingBookings?.n ?? 0) + (pendingProposals?.n ?? 0);
 
   return (
     <>
       <PageHeader
         title="Dashboard"
         description={
-          ds ? `Signed in as ${user.name} · ${ds.datasetId} · Week 7 is Spectra week` : "No dataset loaded"
+          ds
+            ? `${user.name} · ${ds.datasetId}${version ? ` · version #${version.id}, ${timeAgo(version.createdAt)}` : ""}`
+            : "No dataset loaded"
         }
+        actions={<EngineStatus />}
       />
       {sp.denied ? (
         <p
@@ -61,58 +104,129 @@ export default async function DashboardPage({
           />
         </Card>
       ) : (
-        <div className="grid grid-cols-[minmax(0,1fr)] gap-5">
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <Kpi
-              label="Hard violations"
-              value={version.report.hard_violation_count}
-              tone={version.report.hard_violation_count === 0 ? "ok" : "bad"}
-              hint="Clashes, capacity, availability"
-            />
-            <Kpi label="Soft penalty" value={version.report.soft_total} hint="Lower is better" />
-            <Kpi
-              label="Booking score"
-              value={version.report.bookings?.booking_score ?? "–"}
-              suffix={
-                version.report.bookings
-                  ? ` / ${version.report.bookings.booking_score_max_if_all_approved}`
-                  : ""
-              }
-              hint={`${version.report.bookings?.priority_inversions.length ?? 0} priority inversions`}
-            />
-            <Kpi
-              label="Exam penalty"
-              value={version.report.exam_soft_penalty ?? "–"}
-              hint="Same-day exams per group"
-            />
-          </div>
-          <div className="grid grid-cols-[minmax(0,1fr)] gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
-            <Utilisation ds={ds.json} schedule={version.schedule} />
-            <Card>
-              <CardHeader title="Recent activity" />
-              {activity.length ? (
-                <ul className="divide-y divide-gray-4">
-                  {activity.map((a) => (
-                    <li
-                      key={a.id}
-                      className="flex items-center justify-between gap-3 px-4 py-2.5 text-[13px]"
-                    >
-                      <span className="truncate">{a.action.replaceAll("_", " ")}</span>
-                      <span className="tabular shrink-0 text-[11px] text-gray-8">
-                        {a.at.toISOString().slice(0, 16).replace("T", " ")}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <EmptyState title="Nothing yet." />
-              )}
-            </Card>
-          </div>
-          <ReportCard report={version.report} />
-        </div>
+        <Console
+          ds={ds.json}
+          schedule={version.schedule}
+          report={version.report}
+          pending={pending}
+          facultyId={user.facultyId}
+          canApprove={user.role === "admin" || user.role === "dept_coordinator"}
+          activity={activity.map((a) => ({ id: a.id, action: a.action, at: a.at }))}
+        />
       )}
     </>
+  );
+}
+
+function Console({
+  ds,
+  schedule,
+  report,
+  pending,
+  facultyId,
+  canApprove,
+  activity,
+}: {
+  ds: Dataset;
+  schedule: Schedule;
+  report: Report;
+  pending: number;
+  facultyId: string | null;
+  canApprove: boolean;
+  activity: { id: number; action: string; at: Date }[];
+}) {
+  const live = liveSlot();
+  const slots: Record<string, SlotInfo> = {};
+  for (const d of DAYS)
+    for (let p = 1; p <= 9; p++) {
+      const { running, free } = nowAt(ds, schedule, d, p);
+      slots[`${d}|${p}`] = {
+        running: running.map((r) => ({
+          id: r.id,
+          course: r.course,
+          room: r.room,
+          kind: r.kind,
+          groups: r.groups,
+        })),
+        free: free.map((r) => ({ id: r.id, capacity: r.capacity, type: r.type })),
+      };
+    }
+  const mine = facultyId ? nextFor(ds, schedule, facultyId, live.day, live.period) : null;
+  const next = mine
+    ? {
+        label: "Your next class",
+        detail: `${mine.course} ${mine.kind} · ${mine.day} ${periodRange(mine.start, mine.start + mine.dur - 1)} · ${mine.room}`,
+      }
+    : null;
+  const fit = seatFit(ds, schedule);
+  const b = report.bookings;
+
+  return (
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+        <Kpi
+          label="Hard violations"
+          value={report.hard_violation_count}
+          tone={report.hard_violation_count === 0 ? "ok" : "bad"}
+          hint={report.hard_violation_count === 0 ? "All 14 rules hold" : "Needs attention"}
+        />
+        <Kpi label="Soft penalty" value={report.soft_total} hint="Lower is kinder" />
+        <Kpi
+          label="Booking score"
+          value={b?.booking_score ?? "–"}
+          suffix={b ? `/${b.booking_score_max_if_all_approved}` : ""}
+          hint={`${b?.priority_inversions.length ?? 0} priority inversions`}
+        />
+        <Kpi label="Exam penalty" value={report.exam_soft_penalty ?? "–"} hint="Same-day exams per group" />
+        <Kpi
+          label="Pending approvals"
+          value={pending}
+          tone={pending ? "accent" : undefined}
+          hint={canApprove ? "Open the inbox" : "Bookings and changes"}
+          href={canApprove ? "/approvals" : undefined}
+        />
+        <Kpi
+          label="Avg seat fill"
+          value={`${Math.round(fit.avg * 100)}%`}
+          hint={`${fit.buckets[0]} sessions under 40%`}
+        />
+      </div>
+
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
+        <NowPanel slots={slots} live={live} next={next} />
+        <ConstraintMonitor report={report} />
+      </div>
+
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-4 xl:grid-cols-2">
+        <PeakHours ds={ds} schedule={schedule} />
+        <FacultyLoad ds={ds} schedule={schedule} highlight={facultyId} />
+      </div>
+
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+        <GroupLoad ds={ds} schedule={schedule} />
+        <div className="grid gap-4">
+          {b ? <SpectraSummary b={b} /> : null}
+          <Card>
+            <CardHeader title="Recent activity" />
+            {activity.length ? (
+              <ul className="divide-y divide-gray-4">
+                {activity.map((a) => (
+                  <li key={a.id} className="flex items-center justify-between gap-3 px-4 py-2 text-[13px]">
+                    <span className="truncate">{a.action.replaceAll("_", " ")}</span>
+                    <span className="tabular shrink-0 text-[11px] text-gray-8">{timeAgo(a.at)}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <EmptyState title="Nothing yet." />
+            )}
+          </Card>
+        </div>
+      </div>
+
+      <Utilisation ds={ds} schedule={schedule} />
+      {report.hard_violation_count ? <ReportCard report={report} /> : null}
+    </div>
   );
 }
 
@@ -122,36 +236,322 @@ function Kpi({
   suffix,
   hint,
   tone,
+  href,
 }: {
   label: string;
   value: number | string;
   suffix?: string;
   hint?: string;
-  tone?: "ok" | "bad";
+  tone?: "ok" | "bad" | "accent";
+  href?: string;
 }) {
-  return (
-    <Card className="min-w-0 p-4">
+  const body = (
+    <Card className={cn("h-full min-w-0 p-4", href && "transition-colors hover:border-accent")}>
       <p className="truncate text-[12px] text-gray-9">{label}</p>
-      <p className="mt-1 flex items-baseline gap-1">
+      <p className="mt-1.5 flex items-baseline gap-1">
         <span
-          className={`tabular text-[28px] leading-none font-semibold ${tone === "ok" ? "text-ok" : tone === "bad" ? "text-bad" : ""}`}
+          className={cn(
+            "font-display text-[30px] leading-none font-bold tracking-[-0.03em]",
+            tone === "ok" && "text-ok",
+            tone === "bad" && "text-bad",
+            tone === "accent" && "text-accent",
+          )}
         >
           {value}
         </span>
         {suffix ? <span className="tabular text-[13px] text-gray-8">{suffix}</span> : null}
       </p>
-      {hint ? <p className="mt-1.5 truncate text-[11px] text-gray-8">{hint}</p> : null}
+      {hint ? <p className="mt-2 truncate text-[11px] text-gray-8">{hint}</p> : null}
+    </Card>
+  );
+  return href ? (
+    <Link href={href as never} className="block min-w-0">
+      {body}
+    </Link>
+  ) : (
+    body
+  );
+}
+
+function ConstraintMonitor({ report }: { report: Report }) {
+  const soft = Object.entries(report.soft_penalties);
+  const maxSoft = Math.max(1, ...soft.map(([, v]) => v));
+  return (
+    <Card className="min-w-0">
+      <CardHeader
+        title="Constraint monitor"
+        description="Checked by the deterministic engine on every change"
+        action={
+          <Badge tone={report.hard_violation_count ? "bad" : "ok"}>
+            {report.hard_violation_count ? `${report.hard_violation_count} failing` : "All passing"}
+          </Badge>
+        }
+      />
+      <div className="grid gap-4 p-4">
+        <ul className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 xl:grid-cols-2 2xl:grid-cols-3">
+          {HARD_RULES.map((r) => {
+            const n = report.hard_by_rule[r.code] ?? 0;
+            return (
+              <li
+                key={r.code}
+                title={n ? `${n} violation(s)` : "Holds"}
+                className={cn(
+                  "flex items-center gap-2 rounded-[var(--radius-control)] border px-2 py-1.5 text-[12px]",
+                  n ? "border-bad/40 bg-bad-soft" : "border-gray-4",
+                )}
+              >
+                <span className={cn("size-1.5 shrink-0 rounded-full", n ? "bg-bad" : "bg-ok")} />
+                <span className="tabular w-7 shrink-0 text-[11px] text-gray-8">{r.code}</span>
+                <span className="truncate">{r.label}</span>
+                {n ? <span className="tabular ml-auto text-bad">{n}</span> : null}
+              </li>
+            );
+          })}
+        </ul>
+        <div>
+          <p className="mb-2 flex items-baseline justify-between text-[12px] text-gray-9">
+            Soft penalty breakdown <span className="tabular text-gray-10">{report.soft_total} total</span>
+          </p>
+          <ul className="grid gap-1.5">
+            {soft.map(([k, v]) => (
+              <li key={k} className="grid grid-cols-[28px_1fr_32px] items-center gap-2 text-[12px]">
+                <span className="tabular text-[11px] text-gray-8">{k}</span>
+                <span className="relative h-5 overflow-hidden rounded-[5px] bg-gray-2">
+                  <span
+                    className="absolute inset-y-0 left-0 rounded-[5px] bg-accent/25"
+                    style={{ width: `${(v / maxSoft) * 100}%` }}
+                  />
+                  <span className="relative px-2 leading-5 text-gray-9">{SOFT_LABEL[k] ?? k}</span>
+                </span>
+                <span className={cn("tabular text-right", v ? "text-gray-10" : "text-gray-7")}>{v}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
     </Card>
   );
 }
 
-function Utilisation({
+function PeakHours({ ds, schedule }: { ds: Dataset; schedule: Schedule }) {
+  const { grid, teaching, max } = campusHeat(ds, schedule);
+  const busiest = DAYS.flatMap((d) => (grid[d] ?? []).map((n, i) => ({ d, p: i + 1, n }))).sort(
+    (a, b) => b.n - a.n,
+  )[0];
+  return (
+    <Card className="min-w-0">
+      <CardHeader
+        title="Peak hours"
+        description={`Teaching rooms in use, out of ${teaching}`}
+        action={
+          busiest ? (
+            <Badge tone="accent">
+              Busiest {busiest.d} P{busiest.p} · {busiest.n}
+            </Badge>
+          ) : null
+        }
+      />
+      <div className="overflow-x-auto p-4">
+        <div className="grid min-w-[440px] grid-cols-[40px_repeat(5,1fr)_10px_repeat(4,1fr)] gap-[3px] text-[11px]">
+          <span />
+          {Array.from({ length: 9 }, (_, i) => i + 1).map((p) => (
+            <span key={p} className={cn("tabular text-center text-gray-8", p === 6 && "col-start-8")}>
+              P{p}
+            </span>
+          ))}
+          {DAYS.map((d) => (
+            <PeakRow key={d} day={d} row={grid[d] ?? []} max={max} teaching={teaching} />
+          ))}
+        </div>
+        <p className="mt-3 text-[11px] text-gray-8">
+          The gap is lunch (13:00–14:00). Darker means more rooms taken.
+        </p>
+      </div>
+    </Card>
+  );
+}
+
+function PeakRow({ day, row, max, teaching }: { day: string; row: number[]; max: number; teaching: number }) {
+  return (
+    <>
+      <span className="tabular self-center text-gray-9">{day}</span>
+      {row.map((n, i) => (
+        <span
+          key={`${day}-P${i + 1}`}
+          title={`${day} P${i + 1}: ${n} of ${teaching} rooms`}
+          className={cn("tabular grid h-8 place-items-center rounded-[6px]", i === 5 && "col-start-8")}
+          style={{
+            background: `color-mix(in oklch, var(--accent) ${Math.round((n / max) * 80)}%, var(--gray-2))`,
+            color: n / max > 0.55 ? "var(--accent-fg)" : "var(--gray-9)",
+          }}
+        >
+          {n || ""}
+        </span>
+      ))}
+    </>
+  );
+}
+
+function FacultyLoad({
   ds,
   schedule,
+  highlight,
 }: {
-  ds: Parameters<typeof roomUtilisation>[0];
-  schedule: Parameters<typeof roomUtilisation>[1];
+  ds: Dataset;
+  schedule: Schedule;
+  highlight: string | null;
 }) {
+  const rows = facultyLoad(ds, schedule);
+  const atLimit = rows.filter((r) => r.peak >= r.limit).length;
+  const top = rows.slice(0, 8);
+  const me = highlight ? rows.find((r) => r.id === highlight) : undefined;
+  if (me && !top.includes(me)) top.push(me);
+  return (
+    <Card className="min-w-0">
+      <CardHeader
+        title="Faculty load"
+        description="Busiest day against the daily limit, plus weekly hours"
+        action={<Badge tone={atLimit ? "warn" : "ok"}>{atLimit} at daily limit</Badge>}
+      />
+      <ul className="grid gap-2 p-4">
+        {top.map((r) => (
+          <li key={r.id} className="grid grid-cols-[minmax(0,140px)_1fr_64px] items-center gap-3 text-[12px]">
+            <Link
+              href={`/timetable?view=faculty&id=${r.id}`}
+              className={cn("truncate hover:text-accent", r.id === highlight && "font-semibold text-accent")}
+              title={`${r.name} · ${r.dept}`}
+            >
+              {r.id} · {r.name}
+            </Link>
+            <span className="flex gap-0.5" title={DAYS.map((d) => `${d} ${r.perDay[d]}h`).join(" · ")}>
+              {DAYS.map((d) => {
+                const h = r.perDay[d] ?? 0;
+                return (
+                  <span key={d} className="relative h-5 flex-1 overflow-hidden rounded-[4px] bg-gray-2">
+                    <span
+                      className={cn("absolute inset-x-0 bottom-0", h >= r.limit ? "bg-warn" : "bg-accent/60")}
+                      style={{ height: `${Math.min(100, (h / r.limit) * 100)}%` }}
+                    />
+                  </span>
+                );
+              })}
+            </span>
+            <span className="tabular text-right text-gray-9">
+              <span className={r.peak >= r.limit ? "text-[color:var(--warn)]" : "text-gray-10"}>
+                {r.peak}
+              </span>
+              /{r.limit} · {r.week}h
+            </span>
+          </li>
+        ))}
+      </ul>
+    </Card>
+  );
+}
+
+function GroupLoad({ ds, schedule }: { ds: Dataset; schedule: Schedule }) {
+  const rows = groupLoad(ds, schedule);
+  const over = rows.reduce((n, r) => n + r.overSix.length, 0);
+  return (
+    <Card className="min-w-0">
+      <CardHeader
+        title="Student day-load"
+        description="Class hours per group per day (more than 6 is a soft penalty)"
+        action={<Badge tone={over ? "warn" : "ok"}>{over ? `${over} long days` : "No day over 6 h"}</Badge>}
+      />
+      <div className="overflow-x-auto p-4">
+        <table className="w-full min-w-[420px] border-separate border-spacing-[3px] text-[12px]">
+          <thead>
+            <tr className="text-gray-8">
+              <th className="w-24 text-left font-medium">Group</th>
+              {DAYS.map((d) => (
+                <th key={d} className="font-medium">
+                  {d}
+                </th>
+              ))}
+              <th className="w-12 text-right font-medium">Week</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.id}>
+                <td className="truncate">
+                  <Link
+                    href={`/timetable?view=group&id=${r.id}`}
+                    className="tabular hover:text-accent"
+                    title={r.name}
+                  >
+                    {r.id}
+                  </Link>
+                </td>
+                {DAYS.map((d) => {
+                  const h = r.perDay[d] ?? 0;
+                  return (
+                    <td
+                      key={d}
+                      title={`${r.id} ${d}: ${h} h`}
+                      className={cn(
+                        "tabular h-6 rounded-[4px] text-center text-[11px]",
+                        h > 6 && "ring-1 ring-warn",
+                      )}
+                      style={{
+                        background: `color-mix(in oklch, var(--kind-tutorial) ${Math.round((h / 8) * 70)}%, var(--gray-2))`,
+                        color: h > 4 ? "var(--surface)" : "var(--gray-9)",
+                      }}
+                    >
+                      {h || ""}
+                    </td>
+                  );
+                })}
+                <td className="tabular text-right text-gray-9">{r.week}h</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  );
+}
+
+function SpectraSummary({ b }: { b: NonNullable<Report["bookings"]> }) {
+  const total = b.approved + b.alternatives + b.rejected || 1;
+  const parts = [
+    { label: "Approved", n: b.approved, color: "var(--ok)" },
+    { label: "Alternative", n: b.alternatives, color: "var(--warn)" },
+    { label: "Rejected", n: b.rejected, color: "var(--bad)" },
+  ];
+  return (
+    <Card>
+      <CardHeader
+        title="Spectra week"
+        description={`${b.session_overrides} classes moved for institute events · ${b.priority_inversions.length} priority inversions`}
+        action={
+          <Link href="/spectra" className="text-[12px] text-accent hover:underline">
+            Decisions →
+          </Link>
+        }
+      />
+      <div className="p-4">
+        <div className="flex h-3 overflow-hidden rounded-full bg-gray-2">
+          {parts.map((p) => (
+            <span key={p.label} style={{ width: `${(p.n / total) * 100}%`, background: p.color }} />
+          ))}
+        </div>
+        <ul className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-[12px]">
+          {parts.map((p) => (
+            <li key={p.label} className="flex items-center gap-1.5">
+              <span className="size-2 rounded-full" style={{ background: p.color }} />
+              <span className="text-gray-9">{p.label}</span>
+              <span className="tabular font-medium">{p.n}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </Card>
+  );
+}
+
+function Utilisation({ ds, schedule }: { ds: Dataset; schedule: Schedule }) {
   const rows = roomUtilisation(ds, schedule).sort((a, b) => b.pct - a.pct);
   return (
     <Card>

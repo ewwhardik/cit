@@ -85,13 +85,13 @@ export default function AgentsScene({ stage, slots, palettes, active }: Props) {
       return;
     }
     const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
-    renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75));
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
     renderer.setScissorTest(true);
 
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 20);
     camera.position.set(0, 0, 4.4);
-    const geo = new THREE.IcosahedronGeometry(1, 48);
+    const geo = new THREE.IcosahedronGeometry(1, 32);
     const uniforms = palettes.map(([a, b]) => ({
       uTime: { value: 0 },
       uWake: { value: 0 },

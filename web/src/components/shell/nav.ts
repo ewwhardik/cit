@@ -15,6 +15,7 @@ export type NavItem = {
 export const NAV: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: "layout", shortcut: "g d", mobile: true },
   { href: "/timetable", label: "Timetables", icon: "calendar", shortcut: "g t", mobile: true },
+  { href: "/exams", label: "Midsem exams", icon: "exams", shortcut: "g e" },
   { href: "/rooms", label: "Find a room", icon: "search", shortcut: "g r", mobile: true },
   { href: "/book", label: "Book a venue", icon: "plus", shortcut: "g b", mobile: true },
   { href: "/requests", label: "My requests", icon: "inbox", shortcut: "g m" },

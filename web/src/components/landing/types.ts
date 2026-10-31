@@ -33,7 +33,7 @@ export type LandingData = {
 };
 
 export const KIND_COLOR: Record<Kind, string> = {
-  lecture: "#ff5a1f",
+  lecture: "#ff4a12",
   tutorial: "#efe6d2",
   lab: "#c6ff3d",
 };
