@@ -58,12 +58,12 @@ Never commit keys. Set them only in each service's environment-variable settings
 
    | Variable | Value |
    | --- | --- |
-   | `DATABASE_URL` | the Neon pooled string |
+   | `DATABASE_URL` | the Neon **pooled** string (host contains `-pooler`) |
+   | `DATABASE_URL_UNPOOLED` | the Neon **direct** string (used only for migrations) |
    | `BETTER_AUTH_SECRET` | `openssl rand -hex 32` |
    | `BETTER_AUTH_URL` | your Vercel URL, e.g. `https://cit-scheduler.vercel.app` (add it after the first deploy, then redeploy) |
    | `ENGINE_URL` | the Railway domain, e.g. `https://cit-engine-production.up.railway.app` |
    | `ENGINE_SHARED_SECRET` | the same value as on Railway |
-   | `AI_PROVIDER` | `groq` |
    | `GROQ_API_KEY` | your Groq key |
    | `GROQ_PARSE_MODEL` | `openai/gpt-oss-20b` (optional; this is the default) |
    | `GROQ_ASSIST_MODEL` | `openai/gpt-oss-120b` (optional; this is the default) |

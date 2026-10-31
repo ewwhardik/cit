@@ -79,7 +79,7 @@ export function TimetableGrid({
   return (
     <>
       {/* Desktop / tablet: week grid */}
-      <div className="hidden overflow-x-auto rounded-[var(--radius-card)] border border-gray-4 bg-surface md:block">
+      <div className="glass hidden overflow-x-auto rounded-[var(--radius-card)] border border-gray-4/70 md:block">
         <div
           className="grid min-w-[720px]"
           style={{
@@ -88,7 +88,7 @@ export function TimetableGrid({
           }}
         >
           <div
-            className="sticky left-0 z-10 border-b border-gray-4 bg-surface"
+            className="sticky left-0 z-10 border-b border-gray-4 bg-surface-solid"
             style={{ gridRow: 1, gridColumn: 1 }}
           />
           {DAYS.map((d, i) => (
@@ -105,7 +105,7 @@ export function TimetableGrid({
             <div
               key={p}
               className={cn(
-                "sticky left-0 z-10 flex flex-col items-end justify-start border-b border-gray-4 bg-surface px-2 pt-1.5",
+                "sticky left-0 z-10 flex flex-col items-end justify-start border-b border-gray-4 bg-surface-solid px-2 pt-1.5",
                 p >= 10 && "bg-gray-2",
               )}
               style={{ gridRow: rowOf(p), gridColumn: 1 }}
@@ -292,7 +292,7 @@ function BlockSheet({
         <Dialog.Backdrop className="fixed inset-0 z-40 bg-black/25 transition-opacity duration-[280ms] data-[ending-style]:opacity-0 data-[starting-style]:opacity-0" />
         <Dialog.Popup
           className={cn(
-            "fixed z-50 bg-surface shadow-2xl transition-transform duration-[280ms] ease-[var(--ease)]",
+            "fixed z-50 bg-surface-solid shadow-2xl transition-transform duration-[280ms] ease-[var(--ease)]",
             "inset-x-0 bottom-0 max-h-[85dvh] rounded-t-[var(--radius-sheet)] border-t border-gray-4 data-[ending-style]:translate-y-full data-[starting-style]:translate-y-full",
             "md:inset-y-0 md:right-0 md:left-auto md:max-h-none md:w-[400px] md:rounded-none md:border-t-0 md:border-l md:data-[ending-style]:translate-x-full md:data-[ending-style]:translate-y-0 md:data-[starting-style]:translate-x-full md:data-[starting-style]:translate-y-0",
           )}

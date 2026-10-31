@@ -49,7 +49,7 @@ Nobody can approve their own request. This is enforced in code and by a DB check
  phone       • Drizzle ──► Postgres (Neon)         HTTPS +    • checker.py   validator-equivalent rules
              • workflows: bookings, approvals, ──────────►    • timetable.py CP-SAT (feasibility → optimise)
                proposals, disruptions             secret     • exams.py     CP-SAT
-             • AI layer (server only) ──► Groq / Anthropic    • bookings.py  CP-SAT allocator, reasons, overrides
+             • AI layer (server only) ──► Groq    • bookings.py  CP-SAT allocator, reasons, overrides
                  draft JSON → Zod → normaliser → engine       • repair.py    minimal-change re-solve + diagnosis
                  (deterministic parser if AI is down)        • explain.py   slot-by-slot "why" traces
                                                               • changes.py   AI/manual ops → validated proposal
@@ -69,16 +69,18 @@ Nobody can approve their own request. This is enforced in code and by a DB check
 | Faculty change assistant | `openai/gpt-oss-120b`, tool calling | Read-only tools plus `propose_change`. Operations are scope-checked (own sessions only) and evaluated by the engine. An Admin approves. |
 | "Why here?" wording | `openai/gpt-oss-20b` | Only rewords engine facts; the facts stay visible |
 
-If AI is down (no key, timeout, rate limit), the deterministic English+Hinglish parser fills the form and a banner says so. Details: [AI_USAGE.md](AI_USAGE.md). Anthropic models can be used instead with `AI_PROVIDER=anthropic`.
+| Portal characters Lumi (guide), Vela (venues), Orbit (timetable analyst) | `openai/gpt-oss-20b`, tool calling | CSS-3D characters in the corner of every page; read-only tools over live data; answers plus link buttons; never change data |
+
+If AI is down (no key, timeout, rate limit), the deterministic English+Hinglish parser fills the form, the characters give simple answers, and a banner says so. Details: [AI_USAGE.md](AI_USAGE.md).
 
 ## Tech stack
 
 | Layer | Choice |
 | --- | --- |
 | Web | Next.js 16.4 (App Router), React 19.3, TypeScript 6, Tailwind CSS 4, Base UI, cmdk, Sonner, Geist |
-| Auth / DB | Better Auth 1.7 (email + password, role column), Drizzle ORM 0.45, PostgreSQL 16 / Neon |
+| Auth / DB | Better Auth 1.7 (email + password, role column), Drizzle ORM 0.45 + node-postgres, Neon Postgres (pooled URL at runtime, direct URL for migrations) |
 | Engine | Python 3.13, FastAPI, OR-Tools 9.15 CP-SAT, uv, Docker |
-| AI | Groq (gpt-oss-20b / gpt-oss-120b) or Anthropic (Haiku 5.5 / Sonnet 5.5) |
+| AI | Groq only: gpt-oss-20b (small tasks), gpt-oss-120b (multi-step tool use) |
 | Tooling | pnpm, Biome, Vitest, pytest, Playwright |
 
 ## Local setup
@@ -135,7 +137,7 @@ Three free or cheap services: **Neon** (Postgres), **Railway** (engine) and **Ve
 
 1. **Neon:** create a project and copy the pooled connection string (`...-pooler...?sslmode=require`).
 2. **Railway:** create a new project from this GitHub repo. `railway.json` builds `engine/Dockerfile`, health-checks `/health` and restarts on failure. Set `ENGINE_SHARED_SECRET` and `ENGINE_SOLVER_WORKERS` (= vCPUs), then generate a public domain.
-3. **Vercel:** import the repo with **Root Directory `web`**. Set the env vars from `.env.example` (`DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `ENGINE_URL`, `ENGINE_SHARED_SECRET`, `AI_PROVIDER`, `GROQ_API_KEY`, `DEMO_TODAY`, `DEMO_PASSWORD`) and deploy.
+3. **Vercel:** import the repo with **Root Directory `web`**. Set the env vars from `.env.example` (`DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `ENGINE_URL`, `ENGINE_SHARED_SECRET`, `GROQ_API_KEY`, `DEMO_TODAY`, `DEMO_PASSWORD`) and deploy.
 4. From your machine, push the schema and seed the database once:
 
    ```bash

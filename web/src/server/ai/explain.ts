@@ -1,6 +1,6 @@
 import "server-only";
 import type { ExplainTrace } from "../engine";
-import { AI, aiConfigured, anthropic } from "./client";
+import { AI, aiConfigured } from "./client";
 import { groqChat } from "./groq";
 
 const SYSTEM = `You rewrite a scheduling explanation for a student or teacher in two or three plain sentences.
@@ -19,10 +19,10 @@ export async function rephraseExplanation(
       free_start_times: trace.free_start_times,
       best_options: trace.options.slice(0, 3),
     });
-    if (AI.provider === "groq") {
+    {
       const g = await groqChat(
         {
-          model: AI.parseModel,
+          model: AI.smallModel,
           messages: [
             { role: "system", content: SYSTEM },
             { role: "user", content: `<facts>${facts}</facts>` },
@@ -35,23 +35,6 @@ export async function rephraseExplanation(
       const out = g.choices[0]?.message.content?.trim();
       return out ? { text: out, source: "llm" } : { text: trace.summary, source: "engine" };
     }
-    const res = await anthropic().messages.create(
-      {
-        model: AI.parseModel,
-        max_tokens: 1000,
-        system: SYSTEM,
-        output_config: { effort: "low" },
-        messages: [{ role: "user", content: `<facts>${facts}</facts>` }],
-      },
-      { timeout: AI.timeoutMs, maxRetries: 0 },
-    );
-    if (res.stop_reason === "refusal") return { text: trace.summary, source: "engine" };
-    const text = res.content
-      .filter((b) => b.type === "text")
-      .map((b) => (b.type === "text" ? b.text : ""))
-      .join(" ")
-      .trim();
-    return text ? { text, source: "llm" } : { text: trace.summary, source: "engine" };
   } catch {
     return { text: trace.summary, source: "engine" };
   }

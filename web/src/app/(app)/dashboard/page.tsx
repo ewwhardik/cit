@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty";
+import { Tilt } from "@/components/ui/tilt";
 import { DAYS } from "@/lib/time";
 import { roomUtilisation } from "@/lib/timetable";
 import { getActiveDataset, getCurrentVersion } from "@/server/data";
@@ -130,18 +131,20 @@ function Kpi({
   tone?: "ok" | "bad";
 }) {
   return (
-    <Card className="min-w-0 p-4">
-      <p className="truncate text-[12px] text-gray-9">{label}</p>
-      <p className="mt-1 flex items-baseline gap-1">
-        <span
-          className={`tabular text-[28px] leading-none font-semibold ${tone === "ok" ? "text-ok" : tone === "bad" ? "text-bad" : ""}`}
-        >
-          {value}
-        </span>
-        {suffix ? <span className="tabular text-[13px] text-gray-8">{suffix}</span> : null}
-      </p>
-      {hint ? <p className="mt-1.5 truncate text-[11px] text-gray-8">{hint}</p> : null}
-    </Card>
+    <Tilt>
+      <Card className="min-w-0 p-4">
+        <p className="truncate text-[12px] text-gray-9">{label}</p>
+        <p className="mt-1 flex items-baseline gap-1">
+          <span
+            className={`tabular text-[28px] leading-none font-semibold ${tone === "ok" ? "text-ok" : tone === "bad" ? "text-bad" : ""}`}
+          >
+            {value}
+          </span>
+          {suffix ? <span className="tabular text-[13px] text-gray-8">{suffix}</span> : null}
+        </p>
+        {hint ? <p className="mt-1.5 truncate text-[11px] text-gray-8">{hint}</p> : null}
+      </Card>
+    </Tilt>
   );
 }
 

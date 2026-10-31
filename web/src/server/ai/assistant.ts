@@ -1,11 +1,10 @@
 import "server-only";
-import type Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import type { Dataset } from "@/lib/schemas/dataset";
 import type { Schedule } from "@/lib/schemas/schedule";
 import { engine } from "../engine";
 import type { CurrentUser } from "../session";
-import { AI, aiConfigured, aiFailureReason, anthropic } from "./client";
+import { AI, aiConfigured, aiFailureReason } from "./client";
 import { demoToday } from "./context";
 import { type GroqMessage, groqChat } from "./groq";
 import { ASSISTANT_TOOLS, assistantSystemPrompt } from "./prompts/assistant";
@@ -110,109 +109,17 @@ async function runTool(ctx: Ctx, name: string, input: Record<string, unknown>): 
   return JSON.stringify({ error: `Unknown tool ${name}` });
 }
 
-/** LLM tool loop (Sonnet) with a deterministic fallback. Returns proposed ops only - never applies anything. */
+/** LLM tool loop (Groq) with a deterministic fallback. Returns proposed ops only - never applies anything. */
 export async function runAssistant(ctx: Ctx, text: string): Promise<AssistantResult> {
   if (!aiConfigured())
     return {
       ...fallbackAssistant(ctx, text),
       notice: "AI is not configured; used the basic request parser.",
     };
-  if (AI.provider === "groq") return runGroqAssistant(ctx, text);
-  const steps: string[] = [];
-  const messages: Anthropic.MessageParam[] = [{ role: "user", content: text.slice(0, 2000) }];
-  const system = assistantSystemPrompt({
-    userName: ctx.user.name,
-    role: ctx.user.role,
-    facultyId: ctx.user.facultyId,
-    department: ctx.user.department,
-    today: demoToday().weekday,
-  });
-  try {
-    for (let turn = 0; turn < 6; turn++) {
-      const response = await anthropic().beta.messages.create(
-        {
-          model: AI.assistModel,
-          max_tokens: 8000,
-          system,
-          tools: ASSISTANT_TOOLS,
-          output_config: { effort: "medium" },
-          betas: ["server-side-fallback-2026-07-01"],
-          fallbacks: "default",
-          messages,
-        },
-        { timeout: Math.max(AI.timeoutMs * 4, 25_000), maxRetries: 1 },
-      );
-      if (response.stop_reason === "refusal") {
-        return {
-          ...fallbackAssistant(ctx, text),
-          notice: "The AI declined this request; used the basic request parser.",
-        };
-      }
-      const toolUses = response.content.filter(
-        (b): b is Anthropic.Beta.BetaToolUseBlock => b.type === "tool_use",
-      );
-      const textOut = response.content
-        .filter((b): b is Anthropic.Beta.BetaTextBlock => b.type === "text")
-        .map((b) => b.text)
-        .join(" ")
-        .trim();
-      const propose = toolUses.find((t) => t.name === "propose_change");
-      if (propose) {
-        const input = propose.input as { summary?: string; ops?: unknown[] };
-        const parsed = z.array(ChangeOp).safeParse(input.ops ?? []);
-        if (!parsed.success)
-          return {
-            ...fallbackAssistant(ctx, text),
-            notice: "The AI's proposal was malformed; used the basic request parser.",
-          };
-        steps.push("propose_change");
-        return {
-          reply: textOut || input.summary || "",
-          summary: input.summary ?? "",
-          ops: parsed.data,
-          source: "llm",
-          notice: null,
-          steps,
-        };
-      }
-      if (response.stop_reason !== "tool_use" || !toolUses.length) {
-        // The model answered without proposing (e.g. explained why it is impossible).
-        return { reply: textOut, summary: "", ops: [], source: "llm", notice: null, steps };
-      }
-      messages.push({ role: "assistant", content: response.content as Anthropic.MessageParam["content"] });
-      const results: Anthropic.ToolResultBlockParam[] = [];
-      for (const t of toolUses) {
-        steps.push(t.name);
-        try {
-          results.push({
-            type: "tool_result",
-            tool_use_id: t.id,
-            content: await runTool(ctx, t.name, t.input as Record<string, unknown>),
-          });
-        } catch (err) {
-          results.push({
-            type: "tool_result",
-            tool_use_id: t.id,
-            content: `Tool failed: ${(err as Error).message}`,
-            is_error: true,
-          });
-        }
-      }
-      messages.push({ role: "user", content: results });
-    }
-    return {
-      ...fallbackAssistant(ctx, text),
-      notice: "The AI took too many steps; used the basic request parser.",
-    };
-  } catch (err) {
-    return {
-      ...fallbackAssistant(ctx, text),
-      notice: `${aiFailureReason(err)}; used the basic request parser.`,
-    };
-  }
+  return runGroqAssistant(ctx, text);
 }
 
-/** Same loop on Groq (OpenAI-compatible tool calling). */
+/** Tool loop on Groq (OpenAI-compatible tool calling). */
 async function runGroqAssistant(ctx: Ctx, text: string): Promise<AssistantResult> {
   const steps: string[] = [];
   const tools = ASSISTANT_TOOLS.map((t) => ({
@@ -236,7 +143,7 @@ async function runGroqAssistant(ctx: Ctx, text: string): Promise<AssistantResult
     for (let turn = 0; turn < 6; turn++) {
       const res = await groqChat(
         {
-          model: AI.assistModel,
+          model: AI.largeModel,
           messages,
           tools,
           tool_choice: "auto",

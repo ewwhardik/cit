@@ -80,7 +80,7 @@ export function CommandMenu({
         onOpenChange={setOpen}
         label="Command menu"
         overlayClassName="fixed inset-0 z-50 bg-black/30 backdrop-blur-[2px]"
-        contentClassName="fixed left-1/2 top-[12vh] z-50 w-[min(560px,calc(100vw-32px))] -translate-x-1/2 overflow-hidden rounded-[var(--radius-card)] border border-gray-5 bg-surface shadow-2xl"
+        contentClassName="fixed left-1/2 top-[12vh] z-50 w-[min(560px,calc(100vw-32px))] -translate-x-1/2 overflow-hidden rounded-[var(--radius-card)] border border-gray-5 bg-surface-solid shadow-2xl"
       >
         <Command.Input
           placeholder="Jump to a page, group, faculty or room…"

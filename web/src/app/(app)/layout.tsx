@@ -1,5 +1,7 @@
 import { count, eq } from "drizzle-orm";
+import { AgentDock } from "@/components/agents/dock";
 import { CommandMenu, type Jump } from "@/components/shell/command-menu";
+import { Logo } from "@/components/shell/logo";
 import { mobileNavFor, navFor, ROLE_LABEL } from "@/components/shell/nav";
 import { MobileTabs, SidebarNav } from "@/components/shell/sidebar";
 import { SignOutButton, ThemeToggle } from "@/components/shell/user-menu";
@@ -46,11 +48,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="md:grid md:min-h-dvh md:grid-cols-[232px_1fr]">
-      <aside className="sticky top-0 hidden h-dvh flex-col gap-4 border-r border-gray-4 bg-gray-1 p-3 md:flex">
+      <aside className="sticky top-0 hidden h-dvh flex-col gap-4 glass border-r border-gray-4/70 p-3 md:flex">
         <div className="flex items-center gap-2 px-1.5 pt-1">
-          <div className="grid size-7 place-items-center rounded-md bg-accent text-[12px] font-semibold text-accent-fg">
-            C
-          </div>
+          <Logo />
           <div className="min-w-0">
             <p className="truncate text-[13px] font-semibold leading-tight">CIT Scheduler</p>
             <p className="truncate text-[11px] text-gray-9">{ds?.datasetId ?? "No dataset loaded"}</p>
@@ -70,10 +70,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </div>
       </aside>
 
-      <header className="sticky top-0 z-20 flex h-14 items-center gap-2 border-b border-gray-4 bg-surface/95 px-4 backdrop-blur md:hidden">
-        <div className="grid size-7 place-items-center rounded-md bg-accent text-[12px] font-semibold text-accent-fg">
-          C
-        </div>
+      <header className="sticky top-0 z-20 flex h-14 items-center gap-2 border-b border-gray-4 bg-surface-solid/90 px-4 backdrop-blur md:hidden">
+        <Logo />
         <p className="flex-1 truncate text-[14px] font-semibold">CIT Scheduler</p>
         <CommandMenu items={items} jumps={jumps} hotkeys={false} />
         <ThemeToggle />
@@ -82,6 +80,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
       <main className="min-w-0 px-4 pt-5 pb-24 md:px-8 md:pt-7 md:pb-10">{children}</main>
       <MobileTabs items={mobileNavFor(user.role)} />
+      <AgentDock />
     </div>
   );
 }

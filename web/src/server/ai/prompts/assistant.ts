@@ -3,7 +3,6 @@
  * Declared in AI_USAGE.md. Tools only read data or *propose* operations;
  * the engine validates every operation and an Admin approves any change.
  */
-import type Anthropic from "@anthropic-ai/sdk";
 
 export function assistantSystemPrompt(args: {
   userName: string;
@@ -26,7 +25,9 @@ Rules:
 - Keep your final reply to two or three sentences.`;
 }
 
-export const ASSISTANT_TOOLS: Anthropic.Tool[] = [
+export type ToolSpec = { name: string; description: string; input_schema: Record<string, unknown> };
+
+export const ASSISTANT_TOOLS: ToolSpec[] = [
   {
     name: "get_timetable",
     description:

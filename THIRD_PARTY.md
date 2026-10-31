@@ -31,7 +31,6 @@ unmodified; `validator.py` is only imported by our tests as an oracle.
 | [Drizzle ORM / drizzle-kit](https://github.com/drizzle-team/drizzle-orm) | Apache-2.0 | Database access and migrations |
 | [node-postgres (pg)](https://github.com/brianc/node-postgres) | MIT | Postgres driver |
 | [Zod](https://github.com/colinhacks/zod) | MIT | Shared schemas / validation |
-| [Anthropic TypeScript SDK](https://github.com/anthropics/anthropic-sdk-typescript) | MIT | Optional Anthropic provider for the AI layer |
 | [TanStack Query](https://github.com/TanStack/query) | MIT | Installed; not yet used |
 | [Sonner](https://github.com/emilkowalski/sonner) | MIT | Toasts |
 | [Lucide](https://github.com/lucide-icons/lucide) | ISC | Icons |
@@ -48,8 +47,9 @@ unmodified; `validator.py` is only imported by our tests as an oracle.
 | --- | --- |
 | PostgreSQL 16 (Neon in production) | Database |
 | Groq API (`openai/gpt-oss-20b`, `openai/gpt-oss-120b`) | AI provider (see AI_USAGE.md) |
-| Anthropic API (optional alternative provider) | AI provider (see AI_USAGE.md) |
-| Vercel, Railway | Hosting (web, engine) |
+| Vercel, Railway, Neon | Hosting (web, engine, Postgres) |
+| [@neon/config, @neon/env](https://neon.com) | Neon project config and typed env (Apache-2.0) |
+| [@vercel/functions](https://github.com/vercel/vercel) | `attachDatabasePool` for Fluid compute (Apache-2.0) |
 | Playwright + Chromium (dev only) | Screenshot / end-to-end checks |
 
 Projects studied for ideas only (no code used): Timefold school-timetabling

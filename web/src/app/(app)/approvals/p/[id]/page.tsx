@@ -80,7 +80,7 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
       </div>
 
       {p.status === "pending" ? (
-        <div className="fixed inset-x-0 bottom-14 z-20 border-t border-gray-4 bg-surface/95 px-4 py-3 backdrop-blur md:bottom-0 md:left-[232px] md:px-8">
+        <div className="fixed inset-x-0 bottom-14 z-20 border-t border-gray-4 bg-surface-solid/90 px-4 py-3 backdrop-blur md:bottom-0 md:left-[232px] md:px-8">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-[12px] text-gray-9">
               {stale

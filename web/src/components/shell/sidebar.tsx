@@ -69,7 +69,7 @@ export function MobileTabs({ items }: { items: NavItem[] }) {
   return (
     <nav
       aria-label="Main"
-      className="fixed inset-x-0 bottom-0 z-30 grid border-t border-gray-4 bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
+      className="fixed inset-x-0 bottom-0 z-30 grid border-t border-gray-4 bg-surface-solid/90 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
       style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}
     >
       {items.map((item) => {

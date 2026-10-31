@@ -11,7 +11,7 @@ export async function POST(req: Request) {
   if (user instanceof NextResponse) return user;
   const { jobId, note } = await readJson<{ jobId?: number; note?: string }>(req);
   const job = jobId ? await db.query.jobs.findFirst({ where: eq(schema.jobs.id, Number(jobId)) }) : null;
-  if (!job || job.kind !== "evaluate") return jsonError("Unknown change request", 404);
+  if (job?.kind !== "evaluate") return jsonError("Unknown change request", 404);
   if (job.createdBy !== user.id) return jsonError("You can only submit your own change requests.", 403);
   const meta = (job.meta ?? {}) as {
     summary?: string;

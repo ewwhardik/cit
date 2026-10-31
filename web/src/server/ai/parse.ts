@@ -1,5 +1,4 @@
 import "server-only";
-import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
 import { type BookingDraft, emptyDraft } from "@/lib/booking/draft";
 import {
@@ -8,7 +7,7 @@ import {
   parseBookingText,
   parseBookingTextDetailed,
 } from "@/lib/booking/parser";
-import { AI, aiConfigured, aiFailureReason, anthropic } from "./client";
+import { AI, aiConfigured, aiFailureReason } from "./client";
 import { demoToday } from "./context";
 import { groqChat, strictSchema } from "./groq";
 import { LlmDraft, parseSystemPrompt } from "./prompts/parse";
@@ -16,10 +15,10 @@ import { LlmDraft, parseSystemPrompt } from "./prompts/parse";
 async function llmDraft(text: string, ctx: ParseContext): Promise<z.infer<typeof LlmDraft> | null> {
   const system = parseSystemPrompt(ctx, demoToday());
   const user = `<request>\n${text.slice(0, 2000)}\n</request>`;
-  if (AI.provider === "groq") {
+  {
     const res = await groqChat(
       {
-        model: AI.parseModel,
+        model: AI.smallModel,
         messages: [
           { role: "system", content: system },
           { role: "user", content: user },
@@ -42,18 +41,6 @@ async function llmDraft(text: string, ctx: ParseContext): Promise<z.infer<typeof
     const parsed = LlmDraft.safeParse(JSON.parse(content));
     return parsed.success ? parsed.data : null;
   }
-  const response = await anthropic().messages.parse(
-    {
-      model: AI.parseModel,
-      max_tokens: 4000,
-      system,
-      output_config: { format: zodOutputFormat(LlmDraft), effort: "low" },
-      messages: [{ role: "user", content: user }],
-    },
-    { timeout: AI.timeoutMs, maxRetries: 1 },
-  );
-  if (response.stop_reason === "refusal") return null;
-  return response.parsed_output ?? null;
 }
 
 export type ParseResult = {
@@ -107,7 +94,7 @@ export async function parseBookingRequest(text: string, ctx: ParseContext): Prom
     if (!llm.windows.length && basic.windows.length) llm.windows = basic.windows;
     if (llm.duration_periods === null && basic.duration_periods !== null)
       llm.duration_periods = basic.duration_periods;
-    return { draft: normalizeDraft(llm, ctx), source: "llm", notice: null, model: AI.parseModel };
+    return { draft: normalizeDraft(llm, ctx), source: "llm", notice: null, model: AI.smallModel };
   } catch (err) {
     return {
       draft: fallback(),
