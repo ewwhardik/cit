@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { PageHeader } from "@/components/page-header";
 import { ReportCard } from "@/components/report/report-card";
 import { getActiveDataset, getCurrentVersion } from "@/server/data";
+import { relayEnabled } from "@/server/relay";
 import { requireRole } from "@/server/session";
 import { GeneratePanel } from "./panel";
 
@@ -20,6 +21,7 @@ export default async function GeneratePage() {
       <div className="grid gap-5">
         <GeneratePanel
           hasDataset={!!ds}
+          relay={relayEnabled()}
           datasetLabel={
             ds
               ? `${ds.datasetId} · ${ds.json.sessions.length} sessions · ${ds.json.rooms.length} rooms`

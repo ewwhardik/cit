@@ -4,8 +4,9 @@ import { engineFailure, guard, jsonError } from "@/server/api";
 import { audit } from "@/server/data";
 import { db, schema } from "@/server/db";
 import { SYSTEM_USER_ID } from "@/server/demo";
-import { engine, type GenerateResult, type RepairResult } from "@/server/engine";
+import { engine, type GenerateResult, type RepairResult, type ResilienceResult } from "@/server/engine";
 import { createProposal } from "@/server/proposals";
+import { isRelayJob } from "@/server/relay";
 
 type Meta = {
   disruptionId?: number;
@@ -40,10 +41,43 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   if (job.createdBy !== user.id && user.role !== "admin") return jsonError("Not your job", 403);
   const meta = (job.meta ?? {}) as Meta;
   try {
-    const state = await engine.job<GenerateResult & RepairResult>(job.engineJobId);
+    const state = await engine.job<GenerateResult & RepairResult & ResilienceResult>(job.engineJobId);
     let versionId: number | null = null;
     let proposalId: number | null = null;
     const result = state.result;
+
+    // Relayed results are re-checked by the always-on engine before anything is stored.
+    if (
+      state.status === "done" &&
+      job.status === "running" &&
+      isRelayJob(job.engineJobId) &&
+      result?.schedule &&
+      (job.kind === "generate" || job.kind === "repair")
+    ) {
+      const ds = job.datasetRef
+        ? await db.query.datasets.findFirst({ where: eq(schema.datasets.id, job.datasetRef) })
+        : null;
+      if (ds) {
+        try {
+          const baseline =
+            job.kind === "repair" && meta.baseVersionId
+              ? (
+                  await db.query.timetableVersions.findFirst({
+                    where: eq(schema.timetableVersions.id, meta.baseVersionId),
+                  })
+                )?.schedule
+              : undefined;
+          result.report = await engine.check({
+            dataset: ds.json as never,
+            changes: (meta.changes as never) ?? null,
+            schedule: result.schedule,
+            baseline: baseline as never,
+          });
+        } catch {
+          // Engine asleep: keep the runner's report (it ran the same checker).
+        }
+      }
+    }
 
     if (state.status === "failed" && job.status === "running") await claim(id, "failed");
 
@@ -114,6 +148,21 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
         }
       } else if (job.kind === "evaluate") {
         await claim(id, "done");
+      } else if (job.kind === "resilience" && result?.scenarios && (await claim(id, "done"))) {
+        await db
+          .insert(schema.settings)
+          .values({
+            key: "analysis:resilience",
+            value: { result, versionId: meta.baseVersionId ?? null, at: new Date().toISOString() },
+          })
+          .onConflictDoUpdate({
+            target: schema.settings.key,
+            set: {
+              value: { result, versionId: meta.baseVersionId ?? null, at: new Date().toISOString() },
+              updatedAt: new Date(),
+            },
+          });
+        await audit(job.createdBy, "resilience_scan", `job:${id}`, null, result.summary);
       }
     }
     const fresh = await db.query.jobs.findFirst({ where: eq(schema.jobs.id, id) });
@@ -133,6 +182,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
             summary: (result as RepairResult).summary,
             ops_summary: (result as RepairResult).ops_summary,
             fest_note: (result as RepairResult).fest_note,
+            scan: job.kind === "resilience" ? (result as ResilienceResult) : undefined,
           }
         : null,
       versionId,

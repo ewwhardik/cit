@@ -34,14 +34,18 @@ const PHASE_LABEL: Record<string, string> = {
   optimise: "Optimising soft constraints and Spectra space",
   exams: "Scheduling midsem exams",
   bookings: "Deciding Spectra-week bookings",
+  relay_queued: "Starting a 4-CPU solver runner on GitHub Actions",
+  relay_booting: "Installing the solver on the runner",
 };
 
 export function GeneratePanel({
   hasDataset,
   datasetLabel,
+  relay = false,
 }: {
   hasDataset: boolean;
   datasetLabel: string | null;
+  relay?: boolean;
 }) {
   const router = useRouter();
   const [jobId, setJobId] = useState<number | null>(null);
@@ -134,8 +138,14 @@ export function GeneratePanel({
             <option value={60}>60 s · quick</option>
             <option value={120}>2 min · recommended</option>
             <option value={240}>4 min · thorough</option>
+            {relay ? <option value={480}>8 min · deep</option> : null}
           </select>
         </label>
+        <p className="w-full text-[12px] text-gray-8 sm:order-last">
+          {relay
+            ? "Runs on a 4-CPU GitHub Actions runner; allow about a minute for it to start."
+            : "Runs on the always-on engine."}
+        </p>
         <Button variant="primary" onClick={start} loading={starting} disabled={!hasDataset || running}>
           {!starting ? <Play className="size-3.5" /> : null}
           {running ? "Running…" : "Generate timetable"}

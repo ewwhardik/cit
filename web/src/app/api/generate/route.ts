@@ -11,7 +11,8 @@ export async function POST(req: Request) {
   const ds = await getActiveDataset();
   if (!ds) return jsonError("Load a dataset first", 409);
   const body = (await req.json().catch(() => ({}))) as { time_limit_s?: number };
-  const timeLimit = Math.min(300, Math.max(20, Number(body.time_limit_s) || 120));
+  const cap = engine.relayEnabled() ? 600 : 300;
+  const timeLimit = Math.min(cap, Math.max(20, Number(body.time_limit_s) || 120));
   try {
     const { job_id } = await engine.generate({ dataset: ds.json, time_limit_s: timeLimit });
     const [row] = await db

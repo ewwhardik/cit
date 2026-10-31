@@ -63,3 +63,4 @@ Claude Code (Anthropic, Opus-class model) also built the public landing page (`w
 | 2026-10-31 | Claude Code | Web: AI booking parser + fallback, change assistant, bookings/approvals/proposals/disruptions/Spectra/rooms UI |
 | 2026-10-31 | Claude Code | Groq provider (team's key, stored only in `.env`), Docker/Railway config |
 | 2026-10-31 | Claude Code (+ Haiku sub-agents) | Project review against the brief; 3D landing page (three.js, Lenis); Render deployment |
+| 2026-10-31 | Claude Code (+ Haiku sub-agents) | Panel ops console, exams/resilience/versions pages, GitHub Actions solver relay, resilience scan in the engine, Vercel/Neon deployment, README rewrite |

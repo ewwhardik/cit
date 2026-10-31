@@ -49,10 +49,14 @@ unmodified; `validator.py` is only imported by our tests as an oracle.
 
 | Service | Use |
 | --- | --- |
-| PostgreSQL 16 (Neon in production) | Database |
+| PostgreSQL 16 | Database |
 | Groq API (`openai/gpt-oss-20b`, `openai/gpt-oss-120b`) | AI provider (see AI_USAGE.md) |
 | Anthropic API (optional alternative provider) | AI provider (see AI_USAGE.md) |
-| Render (or Vercel + Railway) | Hosting (web, engine, Postgres) |
+| Vercel | Web app hosting |
+| Neon | Postgres hosting |
+| Render | Always-on engine (Docker); mirror of the web app |
+| GitHub Actions (`actions/checkout`, `astral-sh/setup-uv`) | Solver relay: long engine jobs on hosted runners |
+| Modal (optional, `engine/modal_app.py`) | Alternative engine host; not used in production |
 | Playwright + Chromium (dev only) | Screenshot / end-to-end checks |
 
 Projects studied for ideas only (no code used): Timefold school-timetabling

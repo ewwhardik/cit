@@ -1,6 +1,7 @@
 import "server-only";
 import type { ChangeFile, Dataset } from "@/lib/schemas/dataset";
 import type { Report, Schedule } from "@/lib/schemas/schedule";
+import { isRelayJob, relayEnabled, relayState, startRelay } from "./relay";
 
 /** Typed client for the Python scheduling engine (FastAPI). */
 
@@ -47,6 +48,49 @@ async function call<T>(
 }
 
 type WithData = { dataset: Dataset; changes?: ChangeFile | null };
+
+/**
+ * Long solver jobs go to the GitHub Actions relay when it is configured (real
+ * CPUs), and fall back to the always-on engine if the dispatch fails.
+ */
+async function startJob(path: string, body: unknown): Promise<{ job_id: string }> {
+  if (relayEnabled()) {
+    try {
+      return { job_id: await startRelay(path, body) };
+    } catch (err) {
+      console.warn(`[engine] relay unavailable, using ${BASE}: ${(err as Error).message}`);
+    }
+  }
+  return call<{ job_id: string }>(path, body);
+}
+
+export type ResilienceResult = {
+  status: string;
+  scenarios: {
+    id: string;
+    kind: "faculty_leave" | "room_closed";
+    target: string;
+    day: string;
+    label: string;
+    load: number;
+    ok: boolean;
+    status: string;
+    moved: number;
+    time_changed: number;
+    room_only: number;
+    blockers: string[];
+  }[];
+  summary: {
+    total: number;
+    fixable: number;
+    infeasible: number;
+    timed_out: number;
+    median_moved: number;
+    max_moved: number;
+    score: number;
+    elapsed_s: number;
+  };
+};
 
 export type JobState<R> = {
   id: string;
@@ -127,11 +171,13 @@ export type Blocker = { rule: string; reason: string; blockers: string[] };
 
 export const engine = {
   health: () => call<{ ok: boolean; version: string }>("/health", undefined, { timeoutMs: 5000 }),
-  generate: (b: WithData & { time_limit_s?: number; team?: string }) =>
-    call<{ job_id: string }>("/pipeline/generate", b),
-  repair: (b: WithData & { baseline: Schedule; time_limit_s?: number }) =>
-    call<{ job_id: string }>("/disruptions/repair", b),
-  job: <R>(id: string) => call<JobState<R>>(`/jobs/${id}`, undefined, { timeoutMs: 10_000 }),
+  generate: (b: WithData & { time_limit_s?: number; team?: string }) => startJob("/pipeline/generate", b),
+  repair: (b: WithData & { baseline: Schedule; time_limit_s?: number }) => startJob("/disruptions/repair", b),
+  resilience: (b: WithData & { baseline: Schedule; per_scenario_s?: number; limit?: number }) =>
+    startJob("/analysis/resilience", b),
+  job: <R>(id: string) =>
+    isRelayJob(id) ? relayState<R>(id) : call<JobState<R>>(`/jobs/${id}`, undefined, { timeoutMs: 10_000 }),
+  relayEnabled,
   check: (b: WithData & { schedule: Schedule; baseline?: Schedule }) => call<Report>("/timetable/check", b),
   checkMove: (
     b: WithData & {
@@ -148,7 +194,7 @@ export const engine = {
   explain: (b: WithData & { schedule: Schedule; session_id: string; week7?: boolean }) =>
     call<ExplainTrace>("/timetable/explain", b, { timeoutMs: 20_000 }),
   evaluate: (b: WithData & { baseline: Schedule; ops: unknown[]; time_limit_s?: number }) =>
-    call<{ job_id: string }>("/changes/evaluate", b),
+    startJob("/changes/evaluate", b),
   export: (b: WithData & { schedule: Schedule; baseline?: Schedule }) =>
     call<{ schedule: Schedule; report: Report }>("/export", b),
 };

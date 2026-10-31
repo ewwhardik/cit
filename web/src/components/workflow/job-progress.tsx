@@ -58,6 +58,9 @@ export function useJob(jobId: number | null, onDone?: (j: JobView) => void) {
 const PHASE: Record<string, string> = {
   feasibility: "Finding a valid timetable under the new constraints",
   optimise: "Minimising moves (fewest sessions, then fewest time changes)",
+  relay_queued: "Starting a 4-CPU solver runner on GitHub Actions",
+  relay_booting: "Installing the solver on the runner",
+  scenario: "Simulating disruptions",
 };
 
 export function JobStatusLine({ job, startedAt }: { job: JobView | null; startedAt: number }) {

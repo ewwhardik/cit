@@ -35,6 +35,22 @@ export const NAV: NavItem[] = [
     mobile: true,
     section: "manage",
   },
+  {
+    href: "/resilience",
+    label: "Resilience",
+    icon: "shield",
+    roles: ["admin", "dept_coordinator"],
+    shortcut: "g h",
+    section: "manage",
+  },
+  {
+    href: "/versions",
+    label: "Versions",
+    icon: "history",
+    roles: ["admin", "dept_coordinator"],
+    shortcut: "g v",
+    section: "manage",
+  },
   { href: "/spectra", label: "Spectra week", icon: "sparkles", shortcut: "g s", section: "manage" },
   {
     href: "/disruptions",

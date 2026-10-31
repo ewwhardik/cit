@@ -30,6 +30,7 @@ from .jobs import JobRunner
 from .changes import evaluate_ops
 from .explain import explain_session
 from .repair import repair
+from .resilience import resilience_scan
 from .timetable import SolveOptions, solve_timetable
 
 DEFAULT_DATASET = Path(
@@ -275,6 +276,27 @@ def disruptions_repair(req: RepairRequest) -> dict[str, Any]:
         return repair(ds, req.baseline, time_limit_s=req.time_limit_s, workers=SOLVER_WORKERS, on_progress=report)
 
     job = jobs.submit("repair", run)
+    return {"job_id": job.id}
+
+
+class ResilienceRequest(DatasetInput):
+    baseline: dict[str, Any] = Field(description="Current approved schedule.json")
+    per_scenario_s: float = Field(default=40.0, ge=5, le=120)
+    limit: int = Field(default=16, ge=1, le=60)
+
+
+@app.post("/analysis/resilience", dependencies=[Depends(require_secret)])
+def analysis_resilience(req: ResilienceRequest) -> dict[str, Any]:
+    """Simulate losing each busy teacher/room for a day and repair each case (analysis only, nothing applied)."""
+    raw = req.dataset or _default_dataset()
+    if req.changes:
+        raw = apply_changes(raw, req.changes)
+
+    def run(report):
+        return resilience_scan(raw, req.baseline, per_scenario_s=req.per_scenario_s, limit=req.limit,
+                               workers=SOLVER_WORKERS, on_progress=report)
+
+    job = jobs.submit("resilience", run)
     return {"job_id": job.id}
 
 
