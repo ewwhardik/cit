@@ -11,7 +11,7 @@
  * Time model: P1 08:00 … P5 12:00, lunch 13:00, P6 14:00 … P9 17:00, P10-P13 18:00-22:00 (events only).
  */
 import { periodForHour } from "@/lib/time";
-import { type BookingDraft, DAYS, type DraftWindow, emptyDraft, NEEDS, ROOM_TYPES } from "./draft";
+import { type BookingDraft, DAYS, type DraftWindow, emptyDraft, type NEEDS, type ROOM_TYPES } from "./draft";
 
 type Day = (typeof DAYS)[number];
 type RoomType = (typeof ROOM_TYPES)[number];
@@ -47,13 +47,32 @@ const DAY_WORDS: [RegExp, Day | "SAT" | "SUN"][] = [
 ];
 
 const NUMBER_WORDS: Record<string, number> = {
-  one: 1, ek: 1, an: 1, a: 1, two: 2, do: 2, three: 3, teen: 3, four: 4, char: 4, chaar: 4,
-  five: 5, paanch: 5, six: 6, chhe: 6, seven: 7, eight: 8, nine: 9,
+  one: 1,
+  ek: 1,
+  an: 1,
+  a: 1,
+  two: 2,
+  do: 2,
+  three: 3,
+  teen: 3,
+  four: 4,
+  char: 4,
+  chaar: 4,
+  five: 5,
+  paanch: 5,
+  six: 6,
+  chhe: 6,
+  seven: 7,
+  eight: 8,
+  nine: 9,
 };
 
 const NEED_PATTERNS: [RegExp, Need][] = [
   [/\b(projector|slides|presentation|ppt|screen)\b/, "projector"],
-  [/\b(mic|mike|mics|microphones?|sound( system)?|pa( system)?|audio|amplifier|loudspeakers?)\b/, "pa_system"],
+  [
+    /\b(mic|mike|mics|microphones?|sound( system)?|pa( system)?|audio|amplifier|loudspeakers?)\b/,
+    "pa_system",
+  ],
   [/\b(stage|manch)\b/, "stage"],
   [/\b(ac|a\/c|air[- ]?condition(ed|ing)?)\b/, "ac"],
   [/\b(computers?|laptops?|pcs|desktops|systems wale)\b/, "computers"],
@@ -89,7 +108,7 @@ const YEARS: [RegExp, number][] = [
 
 function addDays(day: string, n: number): string {
   const i = WEEK.indexOf(day as (typeof WEEK)[number]);
-  return WEEK[(((i < 0 ? 0 : i) + n) % 7 + 7) % 7] ?? "MON";
+  return WEEK[((((i < 0 ? 0 : i) + n) % 7) + 7) % 7] ?? "MON";
 }
 
 function clockToPeriodStart(h: number): number | null {
@@ -130,7 +149,9 @@ export function parseBookingText(raw: string, ctx: ParseContext): BookingDraft {
   let rest = text;
 
   // ---- duration ("2 hours", "3-hour", "2 ghante", "90 minutes", "an hour", "whole day")
-  const dur = rest.match(/\b(\d+(?:\.\d+)?|one|two|three|four|five|six|an|a|ek|do|teen|char|chaar)[- ]?(hours?|hrs?|ghante|ghanta|ghanton)\b/);
+  const dur = rest.match(
+    /\b(\d+(?:\.\d+)?|one|two|three|four|five|six|an|a|ek|do|teen|char|chaar)[- ]?(hours?|hrs?|ghante|ghanta|ghanton)\b/,
+  );
   if (dur?.[1]) {
     const n = NUMBER_WORDS[dur[1]] ?? Number(dur[1]);
     if (n > 0) d.duration_periods = Math.min(13, Math.ceil(n));
@@ -154,7 +175,9 @@ export function parseBookingText(raw: string, ctx: ParseContext): BookingDraft {
     d.attendance = Number(att[1].replace(/,/g, ""));
     rest = rest.replace(att[0], " ");
   } else {
-    const around = rest.match(/\b(?:around|about|approx(?:imately)?|roughly|maybe|~)\s*(\d[\d,]{1,5})\b(?!\s*(?:am|pm|baje|:))/);
+    const around = rest.match(
+      /\b(?:around|about|approx(?:imately)?|roughly|maybe|~)\s*(\d[\d,]{1,5})\b(?!\s*(?:am|pm|baje|:))/,
+    );
     if (around?.[1]) {
       d.attendance = Number(around[1].replace(/,/g, ""));
       rest = rest.replace(around[0], " ");
@@ -168,8 +191,12 @@ export function parseBookingText(raw: string, ctx: ParseContext): BookingDraft {
   }
 
   // ---- days
-  const daily = /\b(daily|every ?day|each day|all of (fest|spectra|the) week|whole week|all week|roz|rozana)\b/.test(rest);
-  const recurring = daily || /\b(every|each|har)\b|\b(mondays|tuesdays|wednesdays|thursdays|fridays)\b|\bweekly\b/.test(rest);
+  const daily =
+    /\b(daily|every ?day|each day|all of (fest|spectra|the) week|whole week|all week|roz|rozana)\b/.test(
+      rest,
+    );
+  const recurring =
+    daily || /\b(every|each|har)\b|\b(mondays|tuesdays|wednesdays|thursdays|fridays)\b|\bweekly\b/.test(rest);
   const dayHits: string[] = daily ? [...DAYS] : [];
   if (/\b(day after tomorrow|parso|parson)\b/.test(rest)) dayHits.push(addDays(ctx.today, 2));
   else if (/\b(tomorrow|kal)\b/.test(rest)) dayHits.push(addDays(ctx.today, 1));
@@ -177,15 +204,19 @@ export function parseBookingText(raw: string, ctx: ParseContext): BookingDraft {
   for (const [re, day] of DAY_WORDS) if (re.test(rest)) dayHits.push(day);
   const weekend = dayHits.filter((x) => x === "SAT" || x === "SUN");
   const days = [...new Set(dayHits.filter((x): x is Day => (DAYS as readonly string[]).includes(x)))];
-  if (weekend.length) d.ambiguities.push("Venues are bookable Monday to Friday only; weekend dates were ignored.");
-  if (/\b(kal)\b/.test(rest)) d.assumptions.push(`"Kal" read as tomorrow (${days[0] ?? addDays(ctx.today, 1)}).`);
+  if (weekend.length)
+    d.ambiguities.push("Venues are bookable Monday to Friday only; weekend dates were ignored.");
+  if (/\b(kal)\b/.test(rest))
+    d.assumptions.push(`"Kal" read as tomorrow (${days[0] ?? addDays(ctx.today, 1)}).`);
 
   // ---- times
   const hint = partOfDayHint(rest);
   let fromP: number | null = null;
   let toP: number | null = null;
   const range =
-    rest.match(/\bbetween\s+(\d{1,2})(?:[:.](\d{2}))?\s*(am|pm)?\s*and\s+(\d{1,2})(?:[:.](\d{2}))?\s*(am|pm|baje)?\b/) ??
+    rest.match(
+      /\bbetween\s+(\d{1,2})(?:[:.](\d{2}))?\s*(am|pm)?\s*and\s+(\d{1,2})(?:[:.](\d{2}))?\s*(am|pm|baje)?\b/,
+    ) ??
     rest.match(
       /\b(\d{1,2})(?:[:.](\d{2}))?\s*(am|pm)?\s*(?:-|to|till|until|se|tak)\s*(\d{1,2}|midnight)(?:[:.](\d{2}))?\s*(am|pm|baje)?\b/,
     );
@@ -200,15 +231,18 @@ export function parseBookingText(raw: string, ctx: ParseContext): BookingDraft {
     fromP = clockToPeriodStart(s.h);
     toP = clockToPeriodEnd(Math.min(e.h, 22), Number(range[5] ?? 0));
     if (e.h > 22) d.ambiguities.push("Events must end by 22:00; the part after that cannot be booked.");
-    if (fromP === null && s.h >= 22) d.ambiguities.push("Bookings end at 22:00; a start at or after 22:00 cannot be booked.");
+    if (fromP === null && s.h >= 22)
+      d.ambiguities.push("Bookings end at 22:00; a start at or after 22:00 cannot be booked.");
     if (fromP && toP && toP >= fromP && !d.duration_periods) d.duration_periods = toP - fromP + 1;
     if ((s.assumed || e.assumed) && !hint) d.assumptions.push(`Read the times as ${s.h}:00–${e.h}:00.`);
-    if (fromP === null || toP === null) d.ambiguities.push("Part of that time range is outside bookable hours (08:00–13:00, 14:00–22:00).");
+    if (fromP === null || toP === null)
+      d.ambiguities.push("Part of that time range is outside bookable hours (08:00–13:00, 14:00–22:00).");
   } else if (single?.[1]) {
     const mer = (single[3] === "am" || single[3] === "pm" ? single[3] : null) as Meridiem;
     const s = to24(Number(single[1]), mer, hint);
     fromP = clockToPeriodStart(s.h);
-    if (fromP === null) d.ambiguities.push(`${s.h}:00 is not a bookable start time (08:00–12:00 or 14:00–21:00).`);
+    if (fromP === null)
+      d.ambiguities.push(`${s.h}:00 is not a bookable start time (08:00–12:00 or 14:00–21:00).`);
     if (s.assumed && !hint) d.assumptions.push(`Read "${single[1]}" as ${s.h}:00.`);
     if (fromP !== null) {
       if (!d.duration_periods) {
@@ -255,13 +289,18 @@ export function parseBookingText(raw: string, ctx: ParseContext): BookingDraft {
     d.room_types.push("lab_cs");
     d.assumptions.push('"Lab" read as a computer lab.');
   }
-  if (/\b(any (small )?room|koi bhi room)\b/.test(rest) && d.room_types.length === 0) d.room_types.push("classroom");
+  if (/\b(any (small )?room|koi bhi room)\b/.test(rest) && d.room_types.length === 0)
+    d.room_types.push("classroom");
 
   // ---- named room (codes like LH-5, SH-2, CR-101, AUD, OAT; unknown ones like LHC-5 are kept and flagged)
-  const code = raw.match(/\b([A-Za-z]{2,5})[- ]?(\d{1,3})\b/g)?.find((c) => !/^(p|br|f|y|ex|s|h)\d/i.test(c.replace(/[- ]/g, "")));
+  const code = raw
+    .match(/\b([A-Za-z]{2,5})[- ]?(\d{1,3})\b/g)
+    ?.find((c) => !/^(p|br|f|y|ex|s|h)\d/i.test(c.replace(/[- ]/g, "")));
   if (code) d.requested_room = code.toUpperCase().replace(" ", "-");
-  else if (/\b(aud|auditorium|main auditorium)\b/.test(rest) && ctx.rooms.some((r) => r.id === "AUD")) d.requested_room = "AUD";
-  else if (/\boat\b|open air theatre/.test(rest) && ctx.rooms.some((r) => r.id === "OAT")) d.requested_room = "OAT";
+  else if (/\b(aud|auditorium|main auditorium)\b/.test(rest) && ctx.rooms.some((r) => r.id === "AUD"))
+    d.requested_room = "AUD";
+  else if (/\boat\b|open air theatre/.test(rest) && ctx.rooms.some((r) => r.id === "OAT"))
+    d.requested_room = "OAT";
 
   // ---- mandatory groups
   const mandatory = /\b(compulsory|mandatory|zaroori|must attend|required for|for all)\b/.test(rest);
@@ -276,28 +315,41 @@ export function parseBookingText(raw: string, ctx: ParseContext): BookingDraft {
   const known = new Set(ctx.groups.map((g) => g.id));
   if (mandatory) {
     d.mandatory_for_groups = [...groupHits].filter((g) => known.has(g));
-    if (!d.mandatory_for_groups.length) d.ambiguities.push("You said attendance is compulsory; which student groups must attend?");
+    if (!d.mandatory_for_groups.length)
+      d.ambiguities.push("You said attendance is compulsory; which student groups must attend?");
     if (d.attendance === null && d.mandatory_for_groups.length) {
-      const total = d.mandatory_for_groups.reduce((n, id) => n + (ctx.groups.find((g) => g.id === id)?.size ?? 0), 0);
+      const total = d.mandatory_for_groups.reduce(
+        (n, id) => n + (ctx.groups.find((g) => g.id === id)?.size ?? 0),
+        0,
+      );
       if (total > 0) {
         d.attendance = total;
-        d.assumptions.push(`Attendance taken as the size of ${d.mandatory_for_groups.join(", ")} (${total}).`);
+        d.assumptions.push(
+          `Attendance taken as the size of ${d.mandatory_for_groups.join(", ")} (${total}).`,
+        );
       }
     }
   }
 
   // ---- category claims (recorded only; the server caps by role)
-  if (/\binstitute(-level)? event\b|\bconvocation\b|\bspectra (main|core)\b/.test(rest)) d.category_claimed = "institute_event";
-  else if (/\bguest lecture|industry (speaker|talk)|invited talk|expert talk\b/.test(rest)) d.category_claimed = "guest_lecture";
-  else if (/\bdepartment(al)? (event|farewell|meet|function)|\bdept\b|\bfarewell\b/.test(rest)) d.category_claimed = "department_event";
+  if (/\binstitute(-level)? event\b|\bconvocation\b|\bspectra (main|core)\b/.test(rest))
+    d.category_claimed = "institute_event";
+  else if (/\bguest lecture|industry (speaker|talk)|invited talk|expert talk\b/.test(rest))
+    d.category_claimed = "guest_lecture";
+  else if (/\bdepartment(al)? (event|farewell|meet|function)|\bdept\b|\bfarewell\b/.test(rest))
+    d.category_claimed = "department_event";
   else if (/\bclub\b/.test(rest)) d.category_claimed = "club_event";
 
   // ---- conditions ("SH-1, else AUD if more than 100 come")
-  const cond = raw.match(/\b(?:else|otherwise|or else|nahi to|warna|if not)\b[, ]*(?:the )?([^.;,]+?)(?:\s+if\s+(?:more than|over|above|>)\s*(\d+)[^.;]*)?(?:[.;,]|$)/i);
+  const cond = raw.match(
+    /\b(?:else|otherwise|or else|nahi to|warna|if not)\b[, ]*(?:the )?([^.;,]+?)(?:\s+if\s+(?:more than|over|above|>)\s*(\d+)[^.;]*)?(?:[.;,]|$)/i,
+  );
   if (cond?.[1]) {
     const clause = cond[1].toLowerCase();
     const types = TYPE_PATTERNS.filter(([re]) => re.test(clause)).map(([, t]) => t);
-    const roomCode = cond[1].match(/\b([A-Za-z]{2,5})[- ]?(\d{1,3})\b/)?.[0]?.toUpperCase() ?? (/\baud\b/i.test(cond[1]) ? "AUD" : null);
+    const roomCode =
+      cond[1].match(/\b([A-Za-z]{2,5})[- ]?(\d{1,3})\b/)?.[0]?.toUpperCase() ??
+      (/\baud\b/i.test(cond[1]) ? "AUD" : null);
     d.conditions.push({
       when: cond[2] ? `if more than ${cond[2]} attend` : "if the first choice is unavailable",
       room_types: types,
@@ -313,8 +365,11 @@ export function parseBookingText(raw: string, ctx: ParseContext): BookingDraft {
 function deriveTitle(raw: string, lower: string): string {
   const quoted = raw.match(/["“']([^"”']{3,60})["”']/);
   if (quoted?.[1]) return quoted[1].trim();
-  const forThe = raw.match(/\bfor (?:the |our |a |an )?((?:[A-Z][\w'-]*\s?){1,5}(?:farewell|finals|contest|session|meet|workshop|talk|night|fest|seminar|lecture)?)/);
-  if (forThe?.[1] && forThe[1].trim().split(" ").length <= 6 && /[A-Z]/.test(forThe[1][0] ?? "")) return forThe[1].trim();
+  const forThe = raw.match(
+    /\bfor (?:the |our |a |an )?((?:[A-Z][\w'-]*\s?){1,5}(?:farewell|finals|contest|session|meet|workshop|talk|night|fest|seminar|lecture)?)/,
+  );
+  if (forThe?.[1] && forThe[1].trim().split(" ").length <= 6 && /[A-Z]/.test(forThe[1][0] ?? ""))
+    return forThe[1].trim();
   const events: [RegExp, string][] = [
     [/quiz finals?/, "Quiz finals"],
     [/coding contest|hackathon/, "Coding contest"],
@@ -429,7 +484,9 @@ export function normalizeDraft(input: BookingDraft, ctx: ParseContext): BookingD
         w.to_period = Math.min(13, w.from_period + d.duration_periods - 1);
       }
     }
-    const crosses = d.windows.some((w) => w.from_period <= 5 && w.to_period >= 6 && w.to_period - w.from_period + 1 === d.duration_periods);
+    const crosses = d.windows.some(
+      (w) => w.from_period <= 5 && w.to_period >= 6 && w.to_period - w.from_period + 1 === d.duration_periods,
+    );
     if (crosses) d.assumptions.push("The block spans lunch (13:00–14:00); periods are counted around it.");
     if (d.windows.some((w) => w.from_period + d.duration_periods! - 1 > 13)) {
       d.ambiguities.push("Events must end by 22:00; the requested time runs past it.");
@@ -440,7 +497,9 @@ export function normalizeDraft(input: BookingDraft, ctx: ParseContext): BookingD
   if (d.needs.includes("computers") && !d.room_types.includes("lab_cs")) d.room_types.push("lab_cs");
   if (!d.room_types.length) {
     d.room_types = defaultTypes(d.attendance);
-    d.assumptions.push(`Any room type that fits ${d.attendance ?? "the group"} (${d.room_types.join(", ").replaceAll("_", " ")}).`);
+    d.assumptions.push(
+      `Any room type that fits ${d.attendance ?? "the group"} (${d.room_types.join(", ").replaceAll("_", " ")}).`,
+    );
   }
 
   // Requested room: resolve, flag unknown, and check it against the stated needs.
@@ -452,7 +511,10 @@ export function normalizeDraft(input: BookingDraft, ctx: ParseContext): BookingD
       d.ambiguities.push(
         `Room "${unknown}" does not exist${guess ? `; did you mean ${guess.id} (${guess.name})?` : "."}` +
           (guess && [...d.needs].some((n) => !featuresOf(guess).has(n))
-            ? ` ${guess.id} lacks ${d.needs.filter((n) => !featuresOf(guess).has(n)).join(", ").replaceAll("_", " ")}, so another room will be used.`
+            ? ` ${guess.id} lacks ${d.needs
+                .filter((n) => !featuresOf(guess).has(n))
+                .join(", ")
+                .replaceAll("_", " ")}, so another room will be used.`
             : ""),
       );
       d.requested_room = null;
@@ -470,20 +532,29 @@ export function normalizeDraft(input: BookingDraft, ctx: ParseContext): BookingD
               (d.attendance === null || r.capacity >= d.attendance) &&
               d.needs.every((n) => featuresOf(r).has(n)),
           )
-          .sort((a, b) => (a.type === exact.type ? -1 : 0) - (b.type === exact.type ? -1 : 0) || a.capacity - b.capacity)[0];
+          .sort(
+            (a, b) =>
+              (a.type === exact.type ? -1 : 0) - (b.type === exact.type ? -1 : 0) || a.capacity - b.capacity,
+          )[0];
         const why = missing.length
           ? `${exact.id} is not ${missing.includes("accessible") ? "wheelchair accessible" : `equipped with ${missing.join(", ").replaceAll("_", " ")}`}`
           : `${exact.id} seats only ${exact.capacity}`;
-        d.ambiguities.push(`${why}${alt ? `; ${alt.id} (${alt.name}) is, so it was suggested instead.` : "."}`);
+        d.ambiguities.push(
+          `${why}${alt ? `; ${alt.id} (${alt.name}) is, so it was suggested instead.` : "."}`,
+        );
         d.requested_room = alt?.id ?? null;
       }
     }
   }
 
   d.mandatory_for_groups = [...new Set(d.mandatory_for_groups)].filter((g) => known.has(g));
-  const biggest = [...ctx.rooms].filter((r) => r.allowed_uses.includes("event")).sort((a, b) => b.capacity - a.capacity)[0];
+  const biggest = [...ctx.rooms]
+    .filter((r) => r.allowed_uses.includes("event"))
+    .sort((a, b) => b.capacity - a.capacity)[0];
   if (d.attendance && biggest && d.attendance > biggest.capacity) {
-    d.ambiguities.push(`No venue seats ${d.attendance.toLocaleString("en-IN")}; the largest is ${biggest.id} (${biggest.capacity}).`);
+    d.ambiguities.push(
+      `No venue seats ${d.attendance.toLocaleString("en-IN")}; the largest is ${biggest.id} (${biggest.capacity}).`,
+    );
   }
 
   // One follow-up question for the most important missing piece.

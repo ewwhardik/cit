@@ -11,7 +11,9 @@ export const LlmDraft = z.object({
   title: z.string(),
   attendance: z.number().int().nullable(),
   duration_periods: z.number().int().nullable(),
-  windows: z.array(z.object({ day: z.enum(DAYS), from_period: z.number().int(), to_period: z.number().int() })),
+  windows: z.array(
+    z.object({ day: z.enum(DAYS), from_period: z.number().int(), to_period: z.number().int() }),
+  ),
   room_types: z.array(z.enum(ROOM_TYPES)),
   needs: z.array(z.enum(NEEDS)),
   requested_room: z.string().nullable(),
@@ -34,7 +36,10 @@ export const LlmDraft = z.object({
 export function parseSystemPrompt(ctx: ParseContext, today: { date: string; weekday: string }): string {
   const rooms = ctx.rooms
     .filter((r) => r.allowed_uses.includes("event"))
-    .map((r) => `${r.id} | ${r.name} | ${r.type} | ${r.capacity} seats | ${[...r.features, ...(r.accessible ? ["accessible"] : [])].join(", ")}`)
+    .map(
+      (r) =>
+        `${r.id} | ${r.name} | ${r.type} | ${r.capacity} seats | ${[...r.features, ...(r.accessible ? ["accessible"] : [])].join(", ")}`,
+    )
     .join("\n");
   const groups = ctx.groups.map((g) => `${g.id} (${g.name}${g.size ? `, ${g.size}` : ""})`).join("; ");
   return `You fill in venue booking drafts for Chilika Institute of Technology (CIT). A person typed a request in English, Hindi or Hinglish; you turn it into the JSON draft. A human reviews and edits the draft, and the scheduling engine decides availability.

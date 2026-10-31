@@ -37,10 +37,17 @@ export async function POST(req: Request) {
         kind: "repair",
         datasetRef: ds.id,
         createdBy: user.id,
-        meta: { disruptionId: d?.id, baseVersionId: version.id, changes: parsed.data, title: String((body.changes as { description?: string })?.description ?? "") },
+        meta: {
+          disruptionId: d?.id,
+          baseVersionId: version.id,
+          changes: parsed.data,
+          title: String((body.changes as { description?: string })?.description ?? ""),
+        },
       })
       .returning({ id: schema.jobs.id });
-    await audit(user.id, "disruption_uploaded", `disruption:${d?.id}`, null, { changes: parsed.data.changes.length });
+    await audit(user.id, "disruption_uploaded", `disruption:${d?.id}`, null, {
+      changes: parsed.data.changes.length,
+    });
     return NextResponse.json({ jobId: job?.id, disruptionId: d?.id });
   } catch (err) {
     return engineFailure(err);

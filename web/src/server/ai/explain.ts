@@ -6,7 +6,9 @@ const SYSTEM = `You rewrite a scheduling explanation for a student or teacher in
 Use only the facts given. Do not add reasons, numbers, rooms, times or advice that are not in the facts. Keep session ids, course codes, room ids and period labels exactly as written. No preamble.`;
 
 /** Optional Haiku rephrasing of the engine's deterministic summary. Falls back to the summary itself. */
-export async function rephraseExplanation(trace: ExplainTrace): Promise<{ text: string; source: "llm" | "engine" }> {
+export async function rephraseExplanation(
+  trace: ExplainTrace,
+): Promise<{ text: string; source: "llm" | "engine" }> {
   if (!aiConfigured() || !trace.summary) return { text: trace.summary, source: "engine" };
   try {
     const facts = JSON.stringify({

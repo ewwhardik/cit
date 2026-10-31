@@ -31,7 +31,8 @@ export async function createProposal(args: {
 }) {
   const r = args.result;
   if (!r.schedule || !r.report) throw new WorkflowError("The engine did not return a schedule to propose.");
-  if (r.report.hard_violation_count > 0) throw new WorkflowError("The proposed timetable has hard violations; it cannot be submitted.");
+  if (r.report.hard_violation_count > 0)
+    throw new WorkflowError("The proposed timetable has hard violations; it cannot be submitted.");
   const [row] = await db
     .insert(schema.proposals)
     .values({
@@ -49,7 +50,10 @@ export async function createProposal(args: {
       explanation: args.explanation ?? null,
     })
     .returning({ id: schema.proposals.id });
-  await audit(args.requestedBy, "proposal_created", `proposal:${row?.id}`, null, { type: args.type, title: args.title });
+  await audit(args.requestedBy, "proposal_created", `proposal:${row?.id}`, null, {
+    type: args.type,
+    title: args.title,
+  });
   return row?.id ?? null;
 }
 
@@ -65,17 +69,24 @@ export async function approveProposal(id: number, approver: CurrentUser) {
   if (p.status !== "pending") throw new WorkflowError(`This proposal is already ${p.status}.`, 409);
   if (p.requestedBy === approver.id) throw new WorkflowError("You cannot approve your own request.", 403);
   const ds = await getActiveDataset();
-  if (!ds || ds.id !== p.datasetRef) throw new WorkflowError("The dataset changed since this proposal was made.", 409);
+  if (!ds || ds.id !== p.datasetRef)
+    throw new WorkflowError("The dataset changed since this proposal was made.", 409);
   const current = await getCurrentVersion(ds.id);
   if (!current || current.id !== p.baseVersionId)
-    throw new WorkflowError("The timetable changed since this proposal was made; re-run it against the current version.", 409);
+    throw new WorkflowError(
+      "The timetable changed since this proposal was made; re-run it against the current version.",
+      409,
+    );
 
   const changes = ChangeFile.parse(p.changes ?? { changes: [] });
   const newDataset = changes.changes.length ? applyChanges(ds.json, changes) : ds.json;
   const schedule = p.schedule as Schedule;
   const report = await engine.check({ dataset: newDataset, schedule, baseline: current.schedule });
   if (report.hard_violation_count > 0)
-    throw new WorkflowError(`Re-validation found ${report.hard_violation_count} hard violation(s); nothing was applied.`, 409);
+    throw new WorkflowError(
+      `Re-validation found ${report.hard_violation_count} hard violation(s); nothing was applied.`,
+      409,
+    );
 
   const versionId = await db.transaction(async (tx) => {
     const claimed = await tx
@@ -84,8 +95,12 @@ export async function approveProposal(id: number, approver: CurrentUser) {
       .where(and(eq(schema.proposals.id, id), eq(schema.proposals.status, "pending")))
       .returning();
     if (!claimed.length) throw new WorkflowError("Someone else decided this proposal first.", 409);
-    if (changes.changes.length) await tx.update(schema.datasets).set({ json: newDataset }).where(eq(schema.datasets.id, ds.id));
-    await tx.update(schema.timetableVersions).set({ isCurrent: false }).where(eq(schema.timetableVersions.datasetRef, ds.id));
+    if (changes.changes.length)
+      await tx.update(schema.datasets).set({ json: newDataset }).where(eq(schema.datasets.id, ds.id));
+    await tx
+      .update(schema.timetableVersions)
+      .set({ isCurrent: false })
+      .where(eq(schema.timetableVersions.datasetRef, ds.id));
     const [v] = await tx
       .insert(schema.timetableVersions)
       .values({
@@ -99,10 +114,20 @@ export async function approveProposal(id: number, approver: CurrentUser) {
         approvedBy: approver.id,
       })
       .returning({ id: schema.timetableVersions.id });
-    if (p.disruptionId) await tx.update(schema.disruptions).set({ status: "applied" }).where(eq(schema.disruptions.id, p.disruptionId));
+    if (p.disruptionId)
+      await tx
+        .update(schema.disruptions)
+        .set({ status: "applied" })
+        .where(eq(schema.disruptions.id, p.disruptionId));
     return v?.id ?? null;
   });
-  await audit(approver.id, "proposal_approved", `proposal:${id}`, { version: current.id }, { version: versionId, changes: changes.changes.length });
+  await audit(
+    approver.id,
+    "proposal_approved",
+    `proposal:${id}`,
+    { version: current.id },
+    { version: versionId, changes: changes.changes.length },
+  );
   return versionId;
 }
 
@@ -114,8 +139,17 @@ export async function rejectProposal(id: number, approver: CurrentUser, reason: 
   if (p.requestedBy === approver.id) throw new WorkflowError("You cannot decide your own request.", 403);
   await db
     .update(schema.proposals)
-    .set({ status: "rejected", approvedBy: approver.id, decidedAt: new Date(), explanation: reason.slice(0, 500) || p.explanation })
+    .set({
+      status: "rejected",
+      approvedBy: approver.id,
+      decidedAt: new Date(),
+      explanation: reason.slice(0, 500) || p.explanation,
+    })
     .where(eq(schema.proposals.id, id));
-  if (p.disruptionId) await db.update(schema.disruptions).set({ status: "rejected" }).where(eq(schema.disruptions.id, p.disruptionId));
+  if (p.disruptionId)
+    await db
+      .update(schema.disruptions)
+      .set({ status: "rejected" })
+      .where(eq(schema.disruptions.id, p.disruptionId));
   await audit(approver.id, "proposal_rejected", `proposal:${id}`, null, { reason });
 }

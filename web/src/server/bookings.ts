@@ -1,11 +1,6 @@
 import "server-only";
 import { and, eq, inArray } from "drizzle-orm";
-import {
-  type BookingSubmission,
-  capCategory,
-  DATASET_ROLE,
-  type RoleKey,
-} from "@/lib/booking/draft";
+import { type BookingSubmission, capCategory, DATASET_ROLE, type RoleKey } from "@/lib/booking/draft";
 import type { Dataset } from "@/lib/schemas/dataset";
 import type { BookingDecision, Schedule } from "@/lib/schemas/schedule";
 import { audit, getActiveDataset, getCurrentVersion } from "./data";
@@ -58,11 +53,14 @@ export function toRequest(user: CurrentUser, sub: BookingSubmission, id: string,
 }
 
 /** The Week-7 schedule the engine checks against: current timetable + Spectra decisions + approved app bookings. */
-export async function liveWeek(excludeRequestId?: string): Promise<{ ds: Dataset; schedule: Schedule; datasetRef: number; versionId: number }> {
+export async function liveWeek(
+  excludeRequestId?: string,
+): Promise<{ ds: Dataset; schedule: Schedule; datasetRef: number; versionId: number }> {
   const ds = await getActiveDataset();
   if (!ds) throw new WorkflowError("No dataset is loaded yet.", 409);
   const version = await getCurrentVersion(ds.id);
-  if (!version) throw new WorkflowError("No timetable has been generated yet, so availability can't be checked.", 409);
+  if (!version)
+    throw new WorkflowError("No timetable has been generated yet, so availability can't be checked.", 409);
   const placed = await db.query.bookingRequests.findMany({
     where: inArray(schema.bookingRequests.status, ["approved", "alternative_offered"]),
   });
@@ -79,7 +77,10 @@ export async function liveWeek(excludeRequestId?: string): Promise<{ ds: Dataset
   };
 }
 
-export async function checkRequest(request: Record<string, unknown>, excludeRequestId?: string): Promise<CheckOutcome> {
+export async function checkRequest(
+  request: Record<string, unknown>,
+  excludeRequestId?: string,
+): Promise<CheckOutcome> {
   const live = await liveWeek(excludeRequestId);
   return (await engine.checkOne({ dataset: live.ds, schedule: live.schedule, request })) as CheckOutcome;
 }
@@ -91,7 +92,9 @@ export function expandSeries(sub: BookingSubmission): BookingSubmission[] {
   return days.map((day) => ({
     ...sub,
     recurrence_days: [],
-    windows: sub.windows.filter((w) => w.day === day).length ? sub.windows.filter((w) => w.day === day) : sub.windows.map((w) => ({ ...w, day })),
+    windows: sub.windows.filter((w) => w.day === day).length
+      ? sub.windows.filter((w) => w.day === day)
+      : sub.windows.map((w) => ({ ...w, day })),
   }));
 }
 
@@ -117,7 +120,10 @@ export async function submitBooking(user: CurrentUser, sub: BookingSubmission, a
       throw new WorkflowError(`Blocked: ${outcome.reason}`, 409);
     }
     if (outcome.status === "alternative_offered" && !acceptAlternative) {
-      throw new WorkflowError(`Not available as requested. ${outcome.reason} Accept the alternative to submit.`, 409);
+      throw new WorkflowError(
+        `Not available as requested. ${outcome.reason} Accept the alternative to submit.`,
+        409,
+      );
     }
     prepared.push({ id, request, outcome });
   }
@@ -145,27 +151,43 @@ export async function submitBooking(user: CurrentUser, sub: BookingSubmission, a
     });
     ids.push(p.id);
   }
-  await audit(user.id, "booking_submitted", `booking:${ids.join(",")}`, null, { title: sub.title, parts: ids.length });
+  await audit(user.id, "booking_submitted", `booking:${ids.join(",")}`, null, {
+    title: sub.title,
+    parts: ids.length,
+  });
   return { ids, outcomes: prepared.map((p) => p.outcome) };
 }
 
-export async function canDecideBooking(user: CurrentUser, row: typeof schema.bookingRequests.$inferSelect, ds: Dataset) {
+export async function canDecideBooking(
+  user: CurrentUser,
+  row: typeof schema.bookingRequests.$inferSelect,
+  ds: Dataset,
+) {
   if (row.requesterUserId === user.id) return { ok: false, why: "You cannot approve your own request." };
   if (user.role === "admin") return { ok: true, why: "" };
   if (user.role === "dept_coordinator") {
     const d = row.decision as BookingDecision | null;
     const room = ds.rooms.find((r) => r.id === d?.room_id);
-    if (room && user.department && labDepartments(room.type, room.id).includes(user.department)) return { ok: true, why: "" };
+    if (room && user.department && labDepartments(room.type, room.id).includes(user.department))
+      return { ok: true, why: "" };
     return { ok: false, why: "Coordinators approve bookings of their own department's labs only." };
   }
   return { ok: false, why: "Your role cannot approve bookings." };
 }
 
 /** Approve re-checks availability right now (state may have changed since submission). */
-export async function decideBooking(user: CurrentUser, requestId: string, action: "approve" | "reject", note: string) {
-  const row = await db.query.bookingRequests.findFirst({ where: eq(schema.bookingRequests.requestId, requestId) });
+export async function decideBooking(
+  user: CurrentUser,
+  requestId: string,
+  action: "approve" | "reject",
+  note: string,
+) {
+  const row = await db.query.bookingRequests.findFirst({
+    where: eq(schema.bookingRequests.requestId, requestId),
+  });
   if (!row) throw new WorkflowError("Unknown request", 404);
-  if (row.status !== "pending") throw new WorkflowError(`This request is already ${row.status.replace("_", " ")}.`, 409);
+  if (row.status !== "pending")
+    throw new WorkflowError(`This request is already ${row.status.replace("_", " ")}.`, 409);
   const live = await liveWeek(requestId);
   const perm = await canDecideBooking(user, row, live.ds);
   if (!perm.ok) throw new WorkflowError(perm.why, 403);
@@ -175,11 +197,17 @@ export async function decideBooking(user: CurrentUser, requestId: string, action
     await db
       .update(schema.bookingRequests)
       .set({ status: "rejected", reason: note.trim().slice(0, 500), decidedBy: user.id })
-      .where(and(eq(schema.bookingRequests.requestId, requestId), eq(schema.bookingRequests.status, "pending")));
+      .where(
+        and(eq(schema.bookingRequests.requestId, requestId), eq(schema.bookingRequests.status, "pending")),
+      );
     await audit(user.id, "booking_rejected", `booking:${requestId}`, null, { reason: note });
     return { status: "rejected" as const, reason: note };
   }
-  const outcome = (await engine.checkOne({ dataset: live.ds, schedule: live.schedule, request: row.payload as Record<string, unknown> })) as CheckOutcome;
+  const outcome = (await engine.checkOne({
+    dataset: live.ds,
+    schedule: live.schedule,
+    request: row.payload as Record<string, unknown>,
+  })) as CheckOutcome;
   if (outcome.status === "rejected") {
     throw new WorkflowError(`No longer possible: ${outcome.reason}`, 409);
   }
@@ -195,19 +223,28 @@ export async function decideBooking(user: CurrentUser, requestId: string, action
   await db
     .update(schema.bookingRequests)
     .set({ status: outcome.status, decision, reason: outcome.reason, decidedBy: user.id })
-    .where(and(eq(schema.bookingRequests.requestId, requestId), eq(schema.bookingRequests.status, "pending")));
+    .where(
+      and(eq(schema.bookingRequests.requestId, requestId), eq(schema.bookingRequests.status, "pending")),
+    );
   await audit(user.id, "booking_approved", `booking:${requestId}`, row.decision, decision);
   return { status: outcome.status, reason: outcome.reason, decision };
 }
 
 export async function cancelBooking(user: CurrentUser, requestId: string) {
-  const row = await db.query.bookingRequests.findFirst({ where: eq(schema.bookingRequests.requestId, requestId) });
+  const row = await db.query.bookingRequests.findFirst({
+    where: eq(schema.bookingRequests.requestId, requestId),
+  });
   if (!row) throw new WorkflowError("Unknown request", 404);
-  if (row.requesterUserId !== user.id && user.role !== "admin") throw new WorkflowError("Only the requester can cancel.", 403);
-  if (row.status === "cancelled" || row.status === "rejected") throw new WorkflowError(`Already ${row.status}.`, 409);
+  if (row.requesterUserId !== user.id && user.role !== "admin")
+    throw new WorkflowError("Only the requester can cancel.", 403);
+  if (row.status === "cancelled" || row.status === "rejected")
+    throw new WorkflowError(`Already ${row.status}.`, 409);
   await db
     .update(schema.bookingRequests)
-    .set({ status: "cancelled", reason: `Cancelled by ${user.name} on ${new Date().toISOString().slice(0, 10)}.` })
+    .set({
+      status: "cancelled",
+      reason: `Cancelled by ${user.name} on ${new Date().toISOString().slice(0, 10)}.`,
+    })
     .where(eq(schema.bookingRequests.requestId, requestId));
   await audit(user.id, "booking_cancelled", `booking:${requestId}`);
 }

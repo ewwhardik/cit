@@ -99,9 +99,27 @@ export type ExplainTrace = {
   free_start_times: number;
   checked_start_times: number;
   top_blockers: Record<string, string[]>;
-  current: { day: string; start_period: number; room_id: string; soft_contribution: Record<string, number> } | null;
-  options: { day: string; start_period: number; room_id: string; rooms: string[]; soft_delta: number | null }[];
-  slots: { day: string; start_period: number; ok: boolean; rule?: string; reason?: string; rooms?: string[] }[];
+  current: {
+    day: string;
+    start_period: number;
+    room_id: string;
+    soft_contribution: Record<string, number>;
+  } | null;
+  options: {
+    day: string;
+    start_period: number;
+    room_id: string;
+    rooms: string[];
+    soft_delta: number | null;
+  }[];
+  slots: {
+    day: string;
+    start_period: number;
+    ok: boolean;
+    rule?: string;
+    reason?: string;
+    rooms?: string[];
+  }[];
   error?: string;
 };
 

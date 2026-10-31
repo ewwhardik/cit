@@ -33,7 +33,9 @@ export const ASSISTANT_TOOLS: Anthropic.Tool[] = [
       "List the weekly sessions of a faculty member (defaults to the signed-in user): session id, course, kind, groups, day, start period, duration and room.",
     input_schema: {
       type: "object",
-      properties: { faculty_id: { type: "string", description: "Faculty id such as F07. Omit for the signed-in user." } },
+      properties: {
+        faculty_id: { type: "string", description: "Faculty id such as F07. Omit for the signed-in user." },
+      },
       additionalProperties: false,
     },
   },
@@ -64,7 +66,10 @@ export const ASSISTANT_TOOLS: Anthropic.Tool[] = [
           items: {
             type: "object",
             properties: {
-              op: { type: "string", enum: ["mark_unavailable", "move_session", "add_session", "remove_session"] },
+              op: {
+                type: "string",
+                enum: ["mark_unavailable", "move_session", "add_session", "remove_session"],
+              },
               faculty_id: { type: "string" },
               session_id: { type: "string" },
               like_session_id: { type: "string" },

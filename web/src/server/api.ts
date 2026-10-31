@@ -19,7 +19,8 @@ export async function guard(...roles: Role[]): Promise<CurrentUser | NextRespons
 
 export function engineFailure(err: unknown) {
   if (err instanceof WorkflowError) return jsonError(err.message, err.status);
-  if (err instanceof EngineError) return jsonError(err.message, err.status >= 500 ? 502 : err.status, { detail: err.detail });
+  if (err instanceof EngineError)
+    return jsonError(err.message, err.status >= 500 ? 502 : err.status, { detail: err.detail });
   return jsonError((err as Error).message ?? "Unexpected error", 500);
 }
 

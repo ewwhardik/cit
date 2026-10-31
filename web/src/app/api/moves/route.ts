@@ -15,21 +15,32 @@ import { createProposal } from "@/server/proposals";
 export async function POST(req: Request) {
   const user = await guard("admin", "dept_coordinator", "faculty");
   if (user instanceof NextResponse) return user;
-  const b = await readJson<{ session_id?: string; day?: string; start_period?: number; room_id?: string; note?: string }>(req);
-  if (!b.session_id || !b.day || !b.start_period || !b.room_id) return jsonError("session_id, day, start_period and room_id are required", 400);
+  const b = await readJson<{
+    session_id?: string;
+    day?: string;
+    start_period?: number;
+    room_id?: string;
+    note?: string;
+  }>(req);
+  if (!b.session_id || !b.day || !b.start_period || !b.room_id)
+    return jsonError("session_id, day, start_period and room_id are required", 400);
   const ds = await getActiveDataset();
   const version = ds ? await getCurrentVersion(ds.id) : null;
   if (!ds || !version) return jsonError("No timetable yet.", 409);
   const session = ds.json.sessions.find((s) => s.id === b.session_id);
   if (!session) return jsonError("Unknown session", 404);
-  if (user.role === "faculty" && session.faculty_id !== user.facultyId) return jsonError("You can only move your own sessions.", 403);
+  if (user.role === "faculty" && session.faculty_id !== user.facultyId)
+    return jsonError("You can only move your own sessions.", 403);
   if (user.role === "dept_coordinator") {
     const dept = ds.json.faculty.find((f) => f.id === session.faculty_id)?.department;
-    if (dept !== user.department) return jsonError("Coordinators can only move their own department's sessions.", 403);
+    if (dept !== user.department)
+      return jsonError("Coordinators can only move their own department's sessions.", 403);
   }
 
   // Basket partners move together (same day and start, their own rooms).
-  const partners = session.basket_slot ? ds.json.sessions.filter((s) => s.basket_slot === session.basket_slot).map((s) => s.id) : [session.id];
+  const partners = session.basket_slot
+    ? ds.json.sessions.filter((s) => s.basket_slot === session.basket_slot).map((s) => s.id)
+    : [session.id];
   const before = new Map(version.schedule.sessions.map((p) => [p.session_id, p]));
   const schedule: Schedule = {
     ...version.schedule,
@@ -44,7 +55,9 @@ export async function POST(req: Request) {
   try {
     const report = await engine.check({ dataset: ds.json, schedule, baseline: version.schedule });
     if (report.hard_violation_count > 0) {
-      return jsonError(`Blocked: this move breaks ${report.hard_violation_count} hard rule(s).`, 409, { violations: report.hard_violations.slice(0, 8) });
+      return jsonError(`Blocked: this move breaks ${report.hard_violation_count} hard rule(s).`, 409, {
+        violations: report.hard_violations.slice(0, 8),
+      });
     }
     const diff: DiffRow[] = schedule.sessions
       .filter((p) => {
@@ -62,7 +75,10 @@ export async function POST(req: Request) {
           groups: s?.groups ?? [],
           from: { day: o.day, start_period: o.start_period, room_id: o.room_id },
           to: { day: p.day, start_period: p.start_period, room_id: p.room_id },
-          why: p.session_id === session.id ? (b.note?.slice(0, 200) || `Manual move by ${user.name}`) : "Elective basket moves together",
+          why:
+            p.session_id === session.id
+              ? b.note?.slice(0, 200) || `Manual move by ${user.name}`
+              : "Elective basket moves together",
         };
       });
     const summary = {
@@ -78,14 +94,30 @@ export async function POST(req: Request) {
     };
     if (user.role === "admin") {
       const versionId = await db.transaction(async (tx) => {
-        await tx.update(schema.timetableVersions).set({ isCurrent: false }).where(eq(schema.timetableVersions.datasetRef, ds.id));
+        await tx
+          .update(schema.timetableVersions)
+          .set({ isCurrent: false })
+          .where(eq(schema.timetableVersions.datasetRef, ds.id));
         const [v] = await tx
           .insert(schema.timetableVersions)
-          .values({ datasetRef: ds.id, kind: "applied", parentId: version.id, schedule, report, isCurrent: true, createdBy: user.id, approvedBy: user.id })
+          .values({
+            datasetRef: ds.id,
+            kind: "applied",
+            parentId: version.id,
+            schedule,
+            report,
+            isCurrent: true,
+            createdBy: user.id,
+            approvedBy: user.id,
+          })
           .returning({ id: schema.timetableVersions.id });
         return v?.id;
       });
-      await audit(user.id, "manual_move_applied", `session:${session.id}`, before.get(session.id), { day: b.day, start_period: b.start_period, room_id: b.room_id });
+      await audit(user.id, "manual_move_applied", `session:${session.id}`, before.get(session.id), {
+        day: b.day,
+        start_period: b.start_period,
+        room_id: b.room_id,
+      });
       return NextResponse.json({ applied: true, versionId, summary });
     }
     const proposalId = await createProposal({

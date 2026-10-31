@@ -22,7 +22,12 @@ export type ParseResult = {
 export async function parseBookingRequest(text: string, ctx: ParseContext): Promise<ParseResult> {
   const fallback = () => normalizeDraft(parseBookingText(text, ctx), ctx);
   if (!aiConfigured()) {
-    return { draft: fallback(), source: "fallback", notice: "AI is not configured; filled with the basic parser. Please check the fields.", model: null };
+    return {
+      draft: fallback(),
+      source: "fallback",
+      notice: "AI is not configured; filled with the basic parser. Please check the fields.",
+      model: null,
+    };
   }
   try {
     const response = await anthropic().messages.parse(
@@ -36,14 +41,20 @@ export async function parseBookingRequest(text: string, ctx: ParseContext): Prom
       { timeout: AI.timeoutMs, maxRetries: 1 },
     );
     if (response.stop_reason === "refusal" || !response.parsed_output) {
-      return { draft: fallback(), source: "fallback", notice: "AI could not read this request; filled with the basic parser. Please check the fields.", model: null };
+      return {
+        draft: fallback(),
+        source: "fallback",
+        notice: "AI could not read this request; filled with the basic parser. Please check the fields.",
+        model: null,
+      };
     }
     const llm: BookingDraft = { ...emptyDraft(), ...response.parsed_output };
     // Fill anything the model left empty from the deterministic parser.
     const basic = parseBookingText(text, ctx);
     if (llm.attendance === null && basic.attendance !== null) llm.attendance = basic.attendance;
     if (!llm.windows.length && basic.windows.length) llm.windows = basic.windows;
-    if (llm.duration_periods === null && basic.duration_periods !== null) llm.duration_periods = basic.duration_periods;
+    if (llm.duration_periods === null && basic.duration_periods !== null)
+      llm.duration_periods = basic.duration_periods;
     return { draft: normalizeDraft(llm, ctx), source: "llm", notice: null, model: AI.parseModel };
   } catch (err) {
     return {

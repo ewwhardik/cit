@@ -3,11 +3,17 @@ import { NextResponse } from "next/server";
 import { engineFailure, guard, jsonError } from "@/server/api";
 import { audit } from "@/server/data";
 import { db, schema } from "@/server/db";
-import { type GenerateResult, engine, type RepairResult } from "@/server/engine";
-import { createProposal } from "@/server/proposals";
 import { SYSTEM_USER_ID } from "@/server/demo";
+import { engine, type GenerateResult, type RepairResult } from "@/server/engine";
+import { createProposal } from "@/server/proposals";
 
-type Meta = { disruptionId?: number; baseVersionId?: number; changes?: unknown; title?: string; summary?: string };
+type Meta = {
+  disruptionId?: number;
+  baseVersionId?: number;
+  changes?: unknown;
+  title?: string;
+  summary?: string;
+};
 
 /** Atomically move a job from running -> status; returns false if someone else already did. */
 async function claim(id: number, status: string) {
@@ -44,21 +50,46 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     if (state.status === "done" && job.status === "running") {
       if (job.kind === "generate") {
         const report = result?.report;
-        if (result?.schedule && report && report.hard_violation_count === 0 && job.datasetRef && (await claim(id, "done"))) {
+        if (
+          result?.schedule &&
+          report &&
+          report.hard_violation_count === 0 &&
+          job.datasetRef &&
+          (await claim(id, "done"))
+        ) {
           versionId = await db.transaction(async (tx) => {
-            await tx.update(schema.timetableVersions).set({ isCurrent: false }).where(eq(schema.timetableVersions.datasetRef, job.datasetRef as number));
+            await tx
+              .update(schema.timetableVersions)
+              .set({ isCurrent: false })
+              .where(eq(schema.timetableVersions.datasetRef, job.datasetRef as number));
             const [v] = await tx
               .insert(schema.timetableVersions)
-              .values({ datasetRef: job.datasetRef as number, kind: "base", schedule: result.schedule!, report, isCurrent: true, createdBy: job.createdBy })
+              .values({
+                datasetRef: job.datasetRef as number,
+                kind: "base",
+                schedule: result.schedule!,
+                report,
+                isCurrent: true,
+                createdBy: job.createdBy,
+              })
               .returning({ id: schema.timetableVersions.id });
             return v?.id ?? null;
           });
-          if (versionId) await audit(job.createdBy, "timetable_generated", `version:${versionId}`, null, { soft: report.soft_total });
+          if (versionId)
+            await audit(job.createdBy, "timetable_generated", `version:${versionId}`, null, {
+              soft: report.soft_total,
+            });
         } else if (!(result?.schedule && report && report.hard_violation_count === 0)) {
           await claim(id, "failed");
         }
       } else if (job.kind === "repair") {
-        if (result?.schedule && result.report?.hard_violation_count === 0 && job.datasetRef && meta.baseVersionId && (await claim(id, "done"))) {
+        if (
+          result?.schedule &&
+          result.report?.hard_violation_count === 0 &&
+          job.datasetRef &&
+          meta.baseVersionId &&
+          (await claim(id, "done"))
+        ) {
           proposalId = await createProposal({
             type: "disruption",
             title: meta.title || `Change file #${meta.disruptionId}`,
@@ -70,8 +101,14 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
             disruptionId: meta.disruptionId ?? null,
           });
           if (meta.disruptionId)
-            await db.update(schema.disruptions).set({ status: "proposed" }).where(eq(schema.disruptions.id, meta.disruptionId));
-          await db.update(schema.jobs).set({ meta: { ...meta, proposalId } }).where(eq(schema.jobs.id, id));
+            await db
+              .update(schema.disruptions)
+              .set({ status: "proposed" })
+              .where(eq(schema.disruptions.id, meta.disruptionId));
+          await db
+            .update(schema.jobs)
+            .set({ meta: { ...meta, proposalId } })
+            .where(eq(schema.jobs.id, id));
         } else if (await claim(id, "done")) {
           // Infeasible: no proposal; diagnostics are returned below.
         }

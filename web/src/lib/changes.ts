@@ -10,7 +10,12 @@ export function applyChanges(ds: Dataset, file: ChangeFile): Dataset {
       for (const day of ch.days) f.unavailable.push({ day, periods: ch.periods, reason: ch.reason ?? "" });
     } else if (ch.type === "room_unavailable") {
       for (const day of ch.days)
-        out.room_unavailability.push({ room_id: ch.room_id, day, periods: ch.periods, reason: ch.reason ?? "" });
+        out.room_unavailability.push({
+          room_id: ch.room_id,
+          day,
+          periods: ch.periods,
+          reason: ch.reason ?? "",
+        });
     } else if (ch.type === "add_faculty") {
       out.faculty.push(ch.faculty);
     } else if (ch.type === "add_session") {

@@ -16,9 +16,16 @@ export async function POST(req: Request) {
     const parts = expandSeries(parsed.data);
     const outcomes = [];
     for (const [i, part] of parts.entries()) {
-      outcomes.push({ part: i, windows: part.windows, ...(await checkRequest(toRequest(user, part, `PREVIEW-${i}`, new Date().toISOString()))) });
+      outcomes.push({
+        part: i,
+        windows: part.windows,
+        ...(await checkRequest(toRequest(user, part, `PREVIEW-${i}`, new Date().toISOString()))),
+      });
     }
-    return NextResponse.json({ outcomes, category: toRequest(user, parsed.data, "X", "").requested_category });
+    return NextResponse.json({
+      outcomes,
+      category: toRequest(user, parsed.data, "X", "").requested_category,
+    });
   } catch (err) {
     return engineFailure(err);
   }

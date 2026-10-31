@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { guard, jsonError, readJson } from "@/server/api";
 import { parseContext } from "@/server/ai/context";
 import { parseBookingRequest } from "@/server/ai/parse";
+import { guard, jsonError, readJson } from "@/server/api";
 import { getActiveDataset } from "@/server/data";
 
 /** Plain-language request -> editable draft (LLM with deterministic fallback). Never books anything. */

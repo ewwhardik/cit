@@ -22,7 +22,13 @@ export function parseContext(ds: Dataset): ParseContext {
       accessible: r.accessible,
       allowed_uses: r.allowed_uses,
     })),
-    groups: ds.student_groups.map((g) => ({ id: g.id, name: g.name, year: g.year, department: g.department, size: g.size })),
+    groups: ds.student_groups.map((g) => ({
+      id: g.id,
+      name: g.name,
+      year: g.year,
+      department: g.department,
+      size: g.size,
+    })),
     today: demoToday().weekday,
   };
 }

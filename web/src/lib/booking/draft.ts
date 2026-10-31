@@ -19,7 +19,15 @@ export const ROOM_TYPES = [
   "workshop",
   "lab_civil",
 ] as const;
-export const NEEDS = ["projector", "pa_system", "stage", "ac", "computers", "power_benches", "accessible"] as const;
+export const NEEDS = [
+  "projector",
+  "pa_system",
+  "stage",
+  "ac",
+  "computers",
+  "power_benches",
+  "accessible",
+] as const;
 export const CATEGORIES = ["institute_event", "guest_lecture", "department_event", "club_event"] as const;
 
 export const DraftWindow = z.object({

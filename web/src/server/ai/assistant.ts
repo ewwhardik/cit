@@ -41,16 +41,22 @@ export function scopeCheck(ctx: Ctx, ops: ChangeOp[]): string | null {
   const sessions = new Map(ds.sessions.map((s) => [s.id, s]));
   const facultyDept = new Map(ds.faculty.map((f) => [f.id, f.department]));
   const ownsFaculty = (fid?: string) =>
-    !!fid && (user.role === "faculty" ? fid === user.facultyId : user.role === "dept_coordinator" && facultyDept.get(fid) === user.department);
+    !!fid &&
+    (user.role === "faculty"
+      ? fid === user.facultyId
+      : user.role === "dept_coordinator" && facultyDept.get(fid) === user.department);
   for (const op of ops) {
     const sid = op.session_id ?? op.like_session_id;
     if (sid) {
       const s = sessions.get(sid);
       if (!s) return `Unknown session ${sid}.`;
-      if (!ownsFaculty(s.faculty_id)) return `${sid} is not one of your ${user.role === "faculty" ? "" : "department's "}sessions.`;
+      if (!ownsFaculty(s.faculty_id))
+        return `${sid} is not one of your ${user.role === "faculty" ? "" : "department's "}sessions.`;
     }
     if (op.op === "mark_unavailable" && !ownsFaculty(op.faculty_id)) {
-      return user.role === "faculty" ? "You can only mark your own unavailability." : `${op.faculty_id} is not in your department.`;
+      return user.role === "faculty"
+        ? "You can only mark your own unavailability."
+        : `${op.faculty_id} is not in your department.`;
     }
   }
   return null;
@@ -62,7 +68,16 @@ function timetableFor(ctx: Ctx, facultyId: string) {
     .filter((p) => sessions.get(p.session_id)?.faculty_id === facultyId)
     .map((p) => {
       const s = sessions.get(p.session_id)!;
-      return { session_id: s.id, course: s.course_id, kind: s.kind, groups: s.groups, day: p.day, start_period: p.start_period, duration: s.duration, room: p.room_id };
+      return {
+        session_id: s.id,
+        course: s.course_id,
+        kind: s.kind,
+        groups: s.groups,
+        day: p.day,
+        start_period: p.start_period,
+        duration: s.duration,
+        room: p.room_id,
+      };
     })
     .sort((a, b) => a.day.localeCompare(b.day) || a.start_period - b.start_period);
 }
@@ -75,18 +90,32 @@ async function runTool(ctx: Ctx, name: string, input: Record<string, unknown>): 
   }
   if (name === "find_slots") {
     const sid = String(input.session_id ?? "");
-    if (!ctx.ds.sessions.some((s) => s.id === sid)) return JSON.stringify({ error: `Unknown session ${sid}` });
-    const trace = (await engine.explain({ dataset: ctx.ds, schedule: ctx.schedule, session_id: sid })) as Record<string, any>;
+    if (!ctx.ds.sessions.some((s) => s.id === sid))
+      return JSON.stringify({ error: `Unknown session ${sid}` });
+    const trace = (await engine.explain({
+      dataset: ctx.ds,
+      schedule: ctx.schedule,
+      session_id: sid,
+    })) as Record<string, any>;
     const days = (input.days as string[] | undefined) ?? null;
     const options = (trace.options as any[]).filter((o) => !days || days.includes(o.day)).slice(0, 6);
-    return JSON.stringify({ summary: trace.summary, blocked_by: trace.blocked_by, options, free_start_times: trace.free_start_times });
+    return JSON.stringify({
+      summary: trace.summary,
+      blocked_by: trace.blocked_by,
+      options,
+      free_start_times: trace.free_start_times,
+    });
   }
   return JSON.stringify({ error: `Unknown tool ${name}` });
 }
 
 /** LLM tool loop (Sonnet) with a deterministic fallback. Returns proposed ops only - never applies anything. */
 export async function runAssistant(ctx: Ctx, text: string): Promise<AssistantResult> {
-  if (!aiConfigured()) return { ...fallbackAssistant(ctx, text), notice: "AI is not configured; used the basic request parser." };
+  if (!aiConfigured())
+    return {
+      ...fallbackAssistant(ctx, text),
+      notice: "AI is not configured; used the basic request parser.",
+    };
   const steps: string[] = [];
   const messages: Anthropic.MessageParam[] = [{ role: "user", content: text.slice(0, 2000) }];
   const system = assistantSystemPrompt({
@@ -112,9 +141,14 @@ export async function runAssistant(ctx: Ctx, text: string): Promise<AssistantRes
         { timeout: Math.max(AI.timeoutMs * 4, 25_000), maxRetries: 1 },
       );
       if (response.stop_reason === "refusal") {
-        return { ...fallbackAssistant(ctx, text), notice: "The AI declined this request; used the basic request parser." };
+        return {
+          ...fallbackAssistant(ctx, text),
+          notice: "The AI declined this request; used the basic request parser.",
+        };
       }
-      const toolUses = response.content.filter((b): b is Anthropic.Beta.BetaToolUseBlock => b.type === "tool_use");
+      const toolUses = response.content.filter(
+        (b): b is Anthropic.Beta.BetaToolUseBlock => b.type === "tool_use",
+      );
       const textOut = response.content
         .filter((b): b is Anthropic.Beta.BetaTextBlock => b.type === "text")
         .map((b) => b.text)
@@ -124,9 +158,20 @@ export async function runAssistant(ctx: Ctx, text: string): Promise<AssistantRes
       if (propose) {
         const input = propose.input as { summary?: string; ops?: unknown[] };
         const parsed = z.array(ChangeOp).safeParse(input.ops ?? []);
-        if (!parsed.success) return { ...fallbackAssistant(ctx, text), notice: "The AI's proposal was malformed; used the basic request parser." };
+        if (!parsed.success)
+          return {
+            ...fallbackAssistant(ctx, text),
+            notice: "The AI's proposal was malformed; used the basic request parser.",
+          };
         steps.push("propose_change");
-        return { reply: textOut || input.summary || "", summary: input.summary ?? "", ops: parsed.data, source: "llm", notice: null, steps };
+        return {
+          reply: textOut || input.summary || "",
+          summary: input.summary ?? "",
+          ops: parsed.data,
+          source: "llm",
+          notice: null,
+          steps,
+        };
       }
       if (response.stop_reason !== "tool_use" || !toolUses.length) {
         // The model answered without proposing (e.g. explained why it is impossible).
@@ -137,16 +182,31 @@ export async function runAssistant(ctx: Ctx, text: string): Promise<AssistantRes
       for (const t of toolUses) {
         steps.push(t.name);
         try {
-          results.push({ type: "tool_result", tool_use_id: t.id, content: await runTool(ctx, t.name, t.input as Record<string, unknown>) });
+          results.push({
+            type: "tool_result",
+            tool_use_id: t.id,
+            content: await runTool(ctx, t.name, t.input as Record<string, unknown>),
+          });
         } catch (err) {
-          results.push({ type: "tool_result", tool_use_id: t.id, content: `Tool failed: ${(err as Error).message}`, is_error: true });
+          results.push({
+            type: "tool_result",
+            tool_use_id: t.id,
+            content: `Tool failed: ${(err as Error).message}`,
+            is_error: true,
+          });
         }
       }
       messages.push({ role: "user", content: results });
     }
-    return { ...fallbackAssistant(ctx, text), notice: "The AI took too many steps; used the basic request parser." };
+    return {
+      ...fallbackAssistant(ctx, text),
+      notice: "The AI took too many steps; used the basic request parser.",
+    };
   } catch (err) {
-    return { ...fallbackAssistant(ctx, text), notice: `${aiFailureReason(err)}; used the basic request parser.` };
+    return {
+      ...fallbackAssistant(ctx, text),
+      notice: `${aiFailureReason(err)}; used the basic request parser.`,
+    };
   }
 }
 
@@ -177,29 +237,60 @@ export function fallbackAssistant(ctx: Ctx, text: string): AssistantResult {
   const [unavailPart, movePart] = lower.split(/\b(?:move|shift|reschedule)\b/);
   if (fid && /\b(can'?t|cannot|unavailable|not available|leave|away|busy|nahi)\b/.test(unavailPart ?? "")) {
     const days = daysIn(unavailPart ?? "");
-    if (days.length) ops.push({ op: "mark_unavailable", faculty_id: fid, days, periods: periodsIn(unavailPart ?? ""), reason: text.slice(0, 120) });
+    if (days.length)
+      ops.push({
+        op: "mark_unavailable",
+        faculty_id: fid,
+        days,
+        periods: periodsIn(unavailPart ?? ""),
+        reason: text.slice(0, 120),
+      });
   }
   if (movePart !== undefined && fid) {
     const mine = timetableFor(ctx, fid);
     const courses = ctx.ds.courses as { id: string; name?: string }[];
-    const kind = /\blab\b/.test(movePart) ? "lab" : /\btutorial\b/.test(movePart) ? "tutorial" : /\blecture|class\b/.test(movePart) ? "lecture" : null;
+    const kind = /\blab\b/.test(movePart)
+      ? "lab"
+      : /\btutorial\b/.test(movePart)
+        ? "tutorial"
+        : /\blecture|class\b/.test(movePart)
+          ? "lecture"
+          : null;
     const hit =
       mine.find((m) => movePart.includes(m.course.toLowerCase()) && (!kind || m.kind === kind)) ??
       mine.find((m) => {
         const name = courses.find((c) => c.id === m.course)?.name?.toLowerCase() ?? "";
-        const initials = name.split(/\s+/).map((w) => w[0]).join("");
-        return (name && (movePart.includes(name) || (initials.length > 1 && new RegExp(`\\b${initials}\\b`).test(movePart)))) && (!kind || m.kind === kind);
+        const initials = name
+          .split(/\s+/)
+          .map((w) => w[0])
+          .join("");
+        return (
+          name &&
+          (movePart.includes(name) ||
+            (initials.length > 1 && new RegExp(`\\b${initials}\\b`).test(movePart))) &&
+          (!kind || m.kind === kind)
+        );
       }) ??
       (kind ? mine.find((m) => m.kind === kind) : undefined);
     const days = daysIn(movePart);
     if (hit && days.length) {
       const part = periodsIn(movePart);
-      const starts = part.length === 9 ? undefined : part.filter((p) => hit.kind !== "lab" || p === 2 || p === 6);
-      ops.push({ op: "move_session", session_id: hit.session_id, days, ...(starts?.length ? { starts } : {}) });
+      const starts =
+        part.length === 9 ? undefined : part.filter((p) => hit.kind !== "lab" || p === 2 || p === 6);
+      ops.push({
+        op: "move_session",
+        session_id: hit.session_id,
+        days,
+        ...(starts?.length ? { starts } : {}),
+      });
     }
   }
   const summary = ops
-    .map((o) => (o.op === "mark_unavailable" ? `${o.faculty_id} unavailable ${o.days?.join("/")}` : `move ${o.session_id} to ${o.days?.join("/")}`))
+    .map((o) =>
+      o.op === "mark_unavailable"
+        ? `${o.faculty_id} unavailable ${o.days?.join("/")}`
+        : `move ${o.session_id} to ${o.days?.join("/")}`,
+    )
     .join("; ");
   return {
     reply: ops.length

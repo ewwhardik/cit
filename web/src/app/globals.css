@@ -145,7 +145,7 @@
   }
 }
 
-/* biome-ignore-all lint/complexity/noImportantStyles: reduced-motion must beat component transitions */
+/* Reduced motion must beat component transitions, hence !important. */
 @media (prefers-reduced-motion: reduce) {
   *,
   ::before,
