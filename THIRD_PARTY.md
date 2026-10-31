@@ -31,7 +31,8 @@ unmodified; `validator.py` is only imported by our tests as an oracle.
 | [Drizzle ORM / drizzle-kit](https://github.com/drizzle-team/drizzle-orm) | Apache-2.0 | Database access and migrations |
 | [node-postgres (pg)](https://github.com/brianc/node-postgres) | MIT | Postgres driver |
 | [Zod](https://github.com/colinhacks/zod) | MIT | Shared schemas / validation |
-| [TanStack Query](https://github.com/TanStack/query) | MIT | Client data fetching (planned use) |
+| [Anthropic TypeScript SDK](https://github.com/anthropics/anthropic-sdk-typescript) | MIT | Optional Anthropic provider for the AI layer |
+| [TanStack Query](https://github.com/TanStack/query) | MIT | Installed; not yet used |
 | [Sonner](https://github.com/emilkowalski/sonner) | MIT | Toasts |
 | [Lucide](https://github.com/lucide-icons/lucide) | ISC | Icons |
 | [Geist font](https://github.com/vercel/geist-font) | OFL-1.1 | Typeface |
@@ -46,6 +47,9 @@ unmodified; `validator.py` is only imported by our tests as an oracle.
 | Service | Use |
 | --- | --- |
 | PostgreSQL 16 (Neon in production) | Database |
+| Groq API (`openai/gpt-oss-20b`, `openai/gpt-oss-120b`) | AI provider (see AI_USAGE.md) |
+| Anthropic API (optional alternative provider) | AI provider (see AI_USAGE.md) |
+| Vercel, Railway | Hosting (web, engine) |
 | Playwright + Chromium (dev only) | Screenshot / end-to-end checks |
 
 Projects studied for ideas only (no code used): Timefold school-timetabling

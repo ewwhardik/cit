@@ -1,6 +1,7 @@
 # Scheduling engine: FastAPI + OR-Tools. Build from the repo root:
 #   docker build -f engine/Dockerfile -t cit-engine .
-FROM python:3.13-slim
+ARG PYTHON_IMAGE=python:3.13-slim
+FROM ${PYTHON_IMAGE}
 COPY --from=ghcr.io/astral-sh/uv:0.11 /uv /usr/local/bin/uv
 WORKDIR /app/engine
 COPY engine/pyproject.toml engine/uv.lock engine/.python-version ./
