@@ -41,6 +41,17 @@ The explanation-wording prompt is the `SYSTEM` constant in `web/src/server/ai/ex
 
 No UI generators (v0 etc.) were used.
 
+Claude Code (Anthropic, Opus-class model) also built the public landing page (`web/src/app/page.tsx`, `web/src/components/landing/`): the 3D timetable skyline, the agent orbs, the in-browser parser demo and the styling. Small checks (running the validator and test suites, scanning for secrets) were run by Claude Haiku sub-agents.
+
+## 3a. What the team did
+
+<!-- Fill this in yourselves, honestly and specifically. Judges compare it with the commit history,
+     where AI-assisted commits carry a Co-Authored-By: Claude trailer. Examples of what belongs here:
+     choosing the approach (CP-SAT, engine/web split), defining requirements and priorities for each
+     prompt, reviewing and testing the output, fixing or rejecting what was wrong, deployment, the video. -->
+
+- _To be completed by the team._
+
 ## 4. Running log
 
 | Date | Tool | Work |
@@ -51,3 +62,4 @@ No UI generators (v0 etc.) were used.
 | 2026-10-31 | Claude Code | Engine: explanations, change evaluation, infeasibility diagnosis, session overrides |
 | 2026-10-31 | Claude Code | Web: AI booking parser + fallback, change assistant, bookings/approvals/proposals/disruptions/Spectra/rooms UI |
 | 2026-10-31 | Claude Code | Groq provider (team's key, stored only in `.env`), Docker/Railway config |
+| 2026-10-31 | Claude Code (+ Haiku sub-agents) | Project review against the brief; 3D landing page (three.js, Lenis); Render deployment |

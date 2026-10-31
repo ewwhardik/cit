@@ -35,7 +35,10 @@ unmodified; `validator.py` is only imported by our tests as an oracle.
 | [TanStack Query](https://github.com/TanStack/query) | MIT | Installed; not yet used |
 | [Sonner](https://github.com/emilkowalski/sonner) | MIT | Toasts |
 | [Lucide](https://github.com/lucide-icons/lucide) | ISC | Icons |
-| [Geist font](https://github.com/vercel/geist-font) | OFL-1.1 | Typeface |
+| [three.js](https://github.com/mrdoob/three.js) | MIT | Landing page 3D: timetable skyline, particles, bloom, agent orbs (incl. `RoundedBoxGeometry`, `RoomEnvironment`, post-processing passes from `three/examples/jsm`) |
+| [Lenis](https://github.com/darkroomengineering/lenis) | MIT | Smooth scrolling on the landing page |
+| [Geist font](https://github.com/vercel/geist-font) | OFL-1.1 | Typeface (app) |
+| [Syne](https://fonts.google.com/specimen/Syne), [Instrument Serif](https://fonts.google.com/specimen/Instrument+Serif), [Manrope](https://fonts.google.com/specimen/Manrope), [JetBrains Mono](https://fonts.google.com/specimen/JetBrains+Mono) via `next/font/google` | OFL-1.1 | Typefaces (landing page) |
 | [clsx](https://github.com/lukeed/clsx), [tailwind-merge](https://github.com/dcastil/tailwind-merge) | MIT | Class name helpers |
 | [server-only](https://www.npmjs.com/package/server-only) | MIT | Server/client boundary guard |
 | [Biome](https://github.com/biomejs/biome) | MIT / Apache-2.0 | Lint + format |
@@ -49,7 +52,7 @@ unmodified; `validator.py` is only imported by our tests as an oracle.
 | PostgreSQL 16 (Neon in production) | Database |
 | Groq API (`openai/gpt-oss-20b`, `openai/gpt-oss-120b`) | AI provider (see AI_USAGE.md) |
 | Anthropic API (optional alternative provider) | AI provider (see AI_USAGE.md) |
-| Vercel, Railway | Hosting (web, engine) |
+| Render (or Vercel + Railway) | Hosting (web, engine, Postgres) |
 | Playwright + Chromium (dev only) | Screenshot / end-to-end checks |
 
 Projects studied for ideas only (no code used): Timefold school-timetabling
