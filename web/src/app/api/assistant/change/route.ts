@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { runAssistant, scopeCheck } from "@/server/ai/assistant";
+import { z } from "zod";
+import { type AssistantResult, ChangeOp, runAssistant, scopeCheck } from "@/server/ai/assistant";
 import { engineFailure, guard, jsonError, readJson } from "@/server/api";
 import { audit, getActiveDataset, getCurrentVersion } from "@/server/data";
 import { db, schema } from "@/server/db";
@@ -17,11 +18,9 @@ export async function POST(req: Request) {
   const version = ds ? await getCurrentVersion(ds.id) : null;
   if (!ds || !version) return jsonError("No timetable yet.", 409);
   try {
-    let assistant;
+    let assistant: Omit<AssistantResult, "source"> & { source: AssistantResult["source"] | "manual" };
     if (Array.isArray(body.ops)) {
       // Manual form: the user built the operations directly.
-      const { ChangeOp } = await import("@/server/ai/assistant");
-      const { z } = await import("zod");
       const ops = z.array(ChangeOp).safeParse(body.ops);
       if (!ops.success) return jsonError("Invalid change operations.", 422);
       assistant = {

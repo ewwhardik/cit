@@ -13,6 +13,7 @@ import {
   TEACHING_PERIODS,
 } from "@/lib/time";
 import { cn } from "@/lib/utils";
+import { type MoveMode, SessionActions } from "./session-actions";
 
 export type BlockKind = "lecture" | "tutorial" | "lab" | "exam" | "event";
 
@@ -28,6 +29,9 @@ export type Block = {
   /** Extra rows shown in the details sheet. */
   details?: { label: string; value: React.ReactNode }[];
   tone?: "default" | "conflict" | "ghost" | "added";
+  /** Set for real sessions: enables "Why here?" and (if allowed) "Move" in the details sheet. */
+  sessionId?: string;
+  movable?: boolean;
 };
 
 const KIND_LABEL: Record<BlockKind, string> = {
@@ -55,10 +59,14 @@ export function TimetableGrid({
   blocks,
   showEvening = false,
   emptyLabel = "Nothing scheduled.",
+  moveMode = null,
+  rooms = [],
 }: {
   blocks: Block[];
   showEvening?: boolean;
   emptyLabel?: string;
+  moveMode?: MoveMode;
+  rooms?: string[];
 }) {
   const [selected, setSelected] = useState<Block | null>(null);
   const [mobileDay, setMobileDay] = useState<string>(() => {
@@ -174,7 +182,7 @@ export function TimetableGrid({
         />
       </div>
 
-      <BlockSheet block={selected} onClose={() => setSelected(null)} />
+      <BlockSheet block={selected} onClose={() => setSelected(null)} moveMode={moveMode} rooms={rooms} />
     </>
   );
 }
@@ -267,7 +275,17 @@ function AgendaList({
   );
 }
 
-function BlockSheet({ block, onClose }: { block: Block | null; onClose: () => void }) {
+function BlockSheet({
+  block,
+  onClose,
+  moveMode,
+  rooms,
+}: {
+  block: Block | null;
+  onClose: () => void;
+  moveMode: MoveMode;
+  rooms: string[];
+}) {
   return (
     <Dialog.Root open={block !== null} onOpenChange={(o) => !o && onClose()}>
       <Dialog.Portal>
@@ -280,7 +298,7 @@ function BlockSheet({ block, onClose }: { block: Block | null; onClose: () => vo
           )}
         >
           {block ? (
-            <div className="flex h-full flex-col">
+            <div className="flex h-full flex-col overflow-y-auto">
               <div className="flex items-start justify-between gap-3 border-b border-gray-4 px-5 py-4">
                 <div className="min-w-0">
                   <p
@@ -303,7 +321,7 @@ function BlockSheet({ block, onClose }: { block: Block | null; onClose: () => vo
                   <X className="size-4" />
                 </Dialog.Close>
               </div>
-              <dl className="grid grid-cols-[110px_1fr] gap-x-3 gap-y-2.5 overflow-y-auto px-5 py-4 text-[13px]">
+              <dl className="grid grid-cols-[110px_1fr] gap-x-3 gap-y-2.5 px-5 py-4 text-[13px]">
                 <dt className="text-gray-9">When</dt>
                 <dd className="tabular">
                   {DAY_LABEL[block.day] ?? block.day} · P{block.start}
@@ -323,6 +341,15 @@ function BlockSheet({ block, onClose }: { block: Block | null; onClose: () => vo
                   </div>
                 ))}
               </dl>
+              {block.sessionId ? (
+                <SessionActions
+                  key={block.sessionId}
+                  sessionId={block.sessionId}
+                  current={{ day: block.day, start: block.start, room: block.room }}
+                  rooms={rooms}
+                  moveMode={block.movable ? moveMode : null}
+                />
+              ) : null}
             </div>
           ) : null}
         </Dialog.Popup>

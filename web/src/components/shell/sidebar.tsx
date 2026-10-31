@@ -7,10 +7,34 @@ import { cn } from "@/lib/utils";
 import { NavIcon } from "./icons";
 import type { NavItem } from "./nav";
 
-export function SidebarNav({ items }: { items: NavItem[] }) {
+export function SidebarNav({ items, badges = {} }: { items: NavItem[]; badges?: Record<string, number> }) {
   const path = usePathname();
+  const main = items.filter((i) => i.section !== "manage");
+  const manage = items.filter((i) => i.section === "manage");
   return (
-    <nav aria-label="Main" className="grid gap-0.5">
+    <nav aria-label="Main" className="grid gap-4">
+      <NavGroup items={main} path={path} badges={badges} />
+      {manage.length ? (
+        <div className="grid gap-1">
+          <p className="px-2.5 text-[11px] font-medium text-gray-8">Manage</p>
+          <NavGroup items={manage} path={path} badges={badges} />
+        </div>
+      ) : null}
+    </nav>
+  );
+}
+
+function NavGroup({
+  items,
+  path,
+  badges,
+}: {
+  items: NavItem[];
+  path: string;
+  badges: Record<string, number>;
+}) {
+  return (
+    <div className="grid gap-0.5">
       {items.map((item) => {
         const active = path === item.href || path.startsWith(`${item.href}/`);
         return (
@@ -26,11 +50,16 @@ export function SidebarNav({ items }: { items: NavItem[] }) {
             )}
           >
             <NavIcon name={item.icon} className="size-4" />
-            {item.label}
+            <span className="flex-1">{item.label}</span>
+            {badges[item.href] ? (
+              <span className="tabular rounded-full bg-accent px-1.5 text-[10px] leading-4 font-medium text-accent-fg">
+                {badges[item.href]}
+              </span>
+            ) : null}
           </Link>
         );
       })}
-    </nav>
+    </div>
   );
 }
 

@@ -1,6 +1,7 @@
 import "server-only";
 import type { ExplainTrace } from "../engine";
 import { AI, aiConfigured, anthropic } from "./client";
+import { groqChat } from "./groq";
 
 const SYSTEM = `You rewrite a scheduling explanation for a student or teacher in two or three plain sentences.
 Use only the facts given. Do not add reasons, numbers, rooms, times or advice that are not in the facts. Keep session ids, course codes, room ids and period labels exactly as written. No preamble.`;
@@ -18,6 +19,22 @@ export async function rephraseExplanation(
       free_start_times: trace.free_start_times,
       best_options: trace.options.slice(0, 3),
     });
+    if (AI.provider === "groq") {
+      const g = await groqChat(
+        {
+          model: AI.parseModel,
+          messages: [
+            { role: "system", content: SYSTEM },
+            { role: "user", content: `<facts>${facts}</facts>` },
+          ],
+          reasoning_effort: "low",
+          max_completion_tokens: 800,
+        },
+        Math.max(AI.timeoutMs, 8000),
+      );
+      const out = g.choices[0]?.message.content?.trim();
+      return out ? { text: out, source: "llm" } : { text: trace.summary, source: "engine" };
+    }
     const res = await anthropic().messages.create(
       {
         model: AI.parseModel,

@@ -555,46 +555,60 @@ def _run(tm: TimetableModel, time_limit: float, opts: SolveOptions, on_progress,
 def solve_timetable(
     ds: Dataset, opts: SolveOptions | None = None, on_progress: ProgressFn | None = None
 ) -> SolveResult:
-    """Two-phase solve: find a feasible timetable fast, then optimise from it."""
+    """Solve the timetable.
+
+    * With a baseline (repairs, change requests): one model with the full
+      objective, hinted at the baseline (CP-SAT repairs the hint), using the
+      whole time budget - the baseline is nearly feasible already.
+    * Otherwise two phases: find a feasible timetable (this phase may use any
+      time left over if it needs more than ``feasibility_time_s``), then
+      optimise from it.
+    """
     opts = opts or SolveOptions()
     t0 = time.monotonic()
+    elapsed = lambda: time.monotonic() - t0  # noqa: E731
 
-    # Phase 1: feasibility only (no soft objective), unless a baseline/reservations
-    # make the objective essential to the answer.
-    phase1_opts = SolveOptions(**{**opts.__dict__, "optimize": False, "reserve_cells": {}, "reserve_group_cells": {}, "event_options": [], "baseline": None})
-    phase1_opts.hint = opts.hint or opts.baseline
+    if opts.baseline:
+        tm = TimetableModel(ds, SolveOptions(**{**opts.__dict__, "hint": opts.hint or opts.baseline}))
+        if tm.diagnostics:
+            return SolveResult("infeasible", {}, None, elapsed(), tm.diagnostics, {})
+        solver, status = _run(tm, opts.time_limit_s, opts, on_progress, "optimise")
+        if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+            return SolveResult(_STATUS[status], tm.extract(solver), solver.ObjectiveValue(), elapsed(), [],
+                               {"solve_s": round(solver.WallTime(), 2), "bound": solver.BestObjectiveBound()})
+        msg = ("The constraints cannot all be satisfied together." if status == cp_model.INFEASIBLE
+               else f"No valid timetable found within {opts.time_limit_s:.0f}s; try a larger time budget.")
+        return SolveResult(_STATUS.get(status, "unknown"), {}, None, elapsed(), [msg], {})
+
+    # Phase 1: feasibility only.
+    phase1_opts = SolveOptions(**{**opts.__dict__, "optimize": False, "reserve_cells": {}, "reserve_group_cells": {}, "event_options": []})
     tm1 = TimetableModel(ds, phase1_opts)
     if tm1.diagnostics:
-        return SolveResult("infeasible", {}, None, time.monotonic() - t0, tm1.diagnostics, {})
-    needs_phase2 = bool(opts.optimize or opts.baseline or opts.reserve_cells or opts.reserve_group_cells or opts.event_options)
+        return SolveResult("infeasible", {}, None, elapsed(), tm1.diagnostics, {})
+    needs_phase2 = bool(opts.optimize or opts.reserve_cells or opts.reserve_group_cells or opts.event_options)
     budget = opts.feasibility_time_s if needs_phase2 else opts.time_limit_s
     solver1, status1 = _run(tm1, budget, opts, on_progress, "feasibility")
+    if status1 == cp_model.UNKNOWN and opts.time_limit_s - elapsed() > 3:
+        # Harder instance than usual: give feasibility the rest of the budget.
+        solver1, status1 = _run(tm1, opts.time_limit_s - elapsed(), opts, on_progress, "feasibility")
     if status1 not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
-        msg = (
-            "The constraints cannot all be satisfied together."
-            if status1 == cp_model.INFEASIBLE
-            else f"No timetable found within {budget:.0f}s."
-        )
-        return SolveResult(_STATUS.get(status1, "unknown"), {}, None, time.monotonic() - t0, [msg], {})
+        msg = ("The constraints cannot all be satisfied together." if status1 == cp_model.INFEASIBLE
+               else f"No timetable found within {opts.time_limit_s:.0f}s; try a larger time budget.")
+        return SolveResult(_STATUS.get(status1, "unknown"), {}, None, elapsed(), [msg], {})
     first = tm1.extract(solver1)
-    if not needs_phase2:
-        return SolveResult(
-            "feasible", first, None, time.monotonic() - t0, [],
-            {"phase1_s": round(solver1.WallTime(), 2)},
-        )
+    if not needs_phase2 or opts.time_limit_s - elapsed() < 2:
+        return SolveResult("feasible", first, None, elapsed(), [], {"phase1_s": round(elapsed(), 2)})
 
     # Phase 2: optimise, starting from the phase-1 solution.
-    phase2_opts = SolveOptions(**{**opts.__dict__, "hint": first if not opts.baseline else opts.baseline})
-    tm2 = TimetableModel(ds, phase2_opts)
-    remaining = max(1.0, opts.time_limit_s - (time.monotonic() - t0))
-    solver2, status2 = _run(tm2, remaining, opts, on_progress, "optimise")
+    tm2 = TimetableModel(ds, SolveOptions(**{**opts.__dict__, "hint": first}))
+    solver2, status2 = _run(tm2, max(1.0, opts.time_limit_s - elapsed()), opts, on_progress, "optimise")
     if status2 in (cp_model.OPTIMAL, cp_model.FEASIBLE):
         return SolveResult(
-            _STATUS[status2], tm2.extract(solver2), solver2.ObjectiveValue(), time.monotonic() - t0, [],
+            _STATUS[status2], tm2.extract(solver2), solver2.ObjectiveValue(), elapsed(), [],
             {"phase1_s": round(solver1.WallTime(), 2), "phase2_s": round(solver2.WallTime(), 2),
              "bound": solver2.BestObjectiveBound()},
         )
-    return SolveResult("feasible", first, None, time.monotonic() - t0,
+    return SolveResult("feasible", first, None, elapsed(),
                        ["Optimisation phase found nothing better; returning the feasible timetable."],
                        {"phase1_s": round(solver1.WallTime(), 2)})
 

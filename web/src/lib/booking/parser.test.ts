@@ -122,3 +122,27 @@ describe("sample requests", () => {
     expect(d.windows).toEqual([{ day: "FRI", from_period: 4, to_period: 5 }]);
   });
 });
+
+describe("regressions", () => {
+  it("does not read 'maybe 150' as a room code", () => {
+    const d = parse("Need somewhere for the quiz finals after lunch on Thursday, maybe 150 people.");
+    expect(d.requested_room).toBeNull();
+    expect(d.ambiguities.join(" ")).not.toMatch(/MAYBE/);
+  });
+  it("still reads lowercase codes with a hyphen", () => {
+    const d = parse("book lh-5 on monday 6 to 8 pm for 80 people");
+    expect(d.requested_room).toBe("LH-5");
+  });
+});
+
+describe("normalising LLM drafts", () => {
+  it("treats a generic room phrase as a room type", async () => {
+    const { emptyDraft } = await import("./draft");
+    const d = normalizeDraft({ ...emptyDraft(), requested_room: "seminar hall", attendance: 100 }, ctx);
+    expect(d.requested_room).toBeNull();
+    expect(d.room_types).toContain("seminar_hall");
+    expect(d.ambiguities.join(" ")).not.toMatch(/does not exist/);
+    const a = normalizeDraft({ ...emptyDraft(), requested_room: "the auditorium", attendance: 300 }, ctx);
+    expect(a.requested_room).toBe("AUD");
+  });
+});

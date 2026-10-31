@@ -1,14 +1,29 @@
+import { count, eq } from "drizzle-orm";
 import { CommandMenu, type Jump } from "@/components/shell/command-menu";
-import { navFor, ROLE_LABEL } from "@/components/shell/nav";
+import { mobileNavFor, navFor, ROLE_LABEL } from "@/components/shell/nav";
 import { MobileTabs, SidebarNav } from "@/components/shell/sidebar";
 import { SignOutButton, ThemeToggle } from "@/components/shell/user-menu";
 import { getActiveDataset } from "@/server/data";
+import { db, schema } from "@/server/db";
 import { requireUser } from "@/server/session";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
   const items = navFor(user.role);
   const ds = await getActiveDataset();
+  const badges: Record<string, number> = {};
+  if (user.role === "admin" || user.role === "dept_coordinator") {
+    const [b] = await db
+      .select({ n: count() })
+      .from(schema.bookingRequests)
+      .where(eq(schema.bookingRequests.status, "pending"));
+    const [p] =
+      user.role === "admin"
+        ? await db.select({ n: count() }).from(schema.proposals).where(eq(schema.proposals.status, "pending"))
+        : [{ n: 0 }];
+    const total = (b?.n ?? 0) + (p?.n ?? 0);
+    if (total) badges["/approvals"] = total;
+  }
   const jumps: Jump[] = ds
     ? [
         ...ds.json.student_groups.map((g) => ({
@@ -42,8 +57,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </div>
         </div>
         <CommandMenu items={items} jumps={jumps} />
-        <SidebarNav items={items} />
-        <div className="mt-auto flex items-center gap-2 border-t border-gray-4 px-1 pt-3">
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <SidebarNav items={items} badges={badges} />
+        </div>
+        <div className="flex items-center gap-2 border-t border-gray-4 px-1 pt-3">
           <div className="min-w-0 flex-1">
             <p className="truncate text-[13px] font-medium">{user.name}</p>
             <p className="truncate text-[11px] text-gray-9">{ROLE_LABEL[user.role]}</p>
@@ -64,7 +81,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       </header>
 
       <main className="min-w-0 px-4 pt-5 pb-24 md:px-8 md:pt-7 md:pb-10">{children}</main>
-      <MobileTabs items={items} />
+      <MobileTabs items={mobileNavFor(user.role)} />
     </div>
   );
 }

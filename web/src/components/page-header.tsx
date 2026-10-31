@@ -11,7 +11,7 @@ export function PageHeader({
     <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
       <div className="min-w-0">
         <h1 className="text-[22px] font-semibold tracking-[-0.02em]">{title}</h1>
-        {description ? <p className="mt-1 text-[13px] text-gray-9">{description}</p> : null}
+        {description ? <div className="mt-1 text-[13px] text-gray-9">{description}</div> : null}
       </div>
       {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
     </div>

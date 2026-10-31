@@ -1,10 +1,60 @@
 import "server-only";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
+import { z } from "zod";
 import { type BookingDraft, emptyDraft } from "@/lib/booking/draft";
-import { normalizeDraft, type ParseContext, parseBookingText } from "@/lib/booking/parser";
+import {
+  normalizeDraft,
+  type ParseContext,
+  parseBookingText,
+  parseBookingTextDetailed,
+} from "@/lib/booking/parser";
 import { AI, aiConfigured, aiFailureReason, anthropic } from "./client";
 import { demoToday } from "./context";
+import { groqChat, strictSchema } from "./groq";
 import { LlmDraft, parseSystemPrompt } from "./prompts/parse";
+
+async function llmDraft(text: string, ctx: ParseContext): Promise<z.infer<typeof LlmDraft> | null> {
+  const system = parseSystemPrompt(ctx, demoToday());
+  const user = `<request>\n${text.slice(0, 2000)}\n</request>`;
+  if (AI.provider === "groq") {
+    const res = await groqChat(
+      {
+        model: AI.parseModel,
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: user },
+        ],
+        response_format: {
+          type: "json_schema",
+          json_schema: {
+            name: "booking_draft",
+            strict: true,
+            schema: strictSchema(z.toJSONSchema(LlmDraft)),
+          },
+        },
+        reasoning_effort: "low",
+        max_completion_tokens: 4000,
+      },
+      Math.max(AI.timeoutMs, 8000),
+    );
+    const content = res.choices[0]?.message.content;
+    if (!content) return null;
+    const parsed = LlmDraft.safeParse(JSON.parse(content));
+    return parsed.success ? parsed.data : null;
+  }
+  const response = await anthropic().messages.parse(
+    {
+      model: AI.parseModel,
+      max_tokens: 4000,
+      system,
+      output_config: { format: zodOutputFormat(LlmDraft), effort: "low" },
+      messages: [{ role: "user", content: user }],
+    },
+    { timeout: AI.timeoutMs, maxRetries: 1 },
+  );
+  if (response.stop_reason === "refusal") return null;
+  return response.parsed_output ?? null;
+}
 
 export type ParseResult = {
   draft: BookingDraft;
@@ -30,17 +80,8 @@ export async function parseBookingRequest(text: string, ctx: ParseContext): Prom
     };
   }
   try {
-    const response = await anthropic().messages.parse(
-      {
-        model: AI.parseModel,
-        max_tokens: 4000,
-        system: parseSystemPrompt(ctx, demoToday()),
-        output_config: { format: zodOutputFormat(LlmDraft), effort: "low" },
-        messages: [{ role: "user", content: `<request>\n${text.slice(0, 2000)}\n</request>` }],
-      },
-      { timeout: AI.timeoutMs, maxRetries: 1 },
-    );
-    if (response.stop_reason === "refusal" || !response.parsed_output) {
+    const output = await llmDraft(text, ctx);
+    if (!output) {
       return {
         draft: fallback(),
         source: "fallback",
@@ -48,9 +89,20 @@ export async function parseBookingRequest(text: string, ctx: ParseContext): Prom
         model: null,
       };
     }
-    const llm: BookingDraft = { ...emptyDraft(), ...response.parsed_output };
+    const llm: BookingDraft = { ...emptyDraft(), ...output };
     // Fill anything the model left empty from the deterministic parser.
-    const basic = parseBookingText(text, ctx);
+    // Code, not the model, maps explicit clock times to periods.
+    const { draft: basic, explicitTime } = parseBookingTextDetailed(text, ctx);
+    const key = (ws: BookingDraft["windows"]) =>
+      ws
+        .map((w) => `${w.day}${w.from_period}-${w.to_period}`)
+        .sort()
+        .join(",");
+    if (explicitTime && basic.windows.length && key(basic.windows) !== key(llm.windows)) {
+      llm.windows = basic.windows;
+      if (basic.duration_periods) llm.duration_periods = basic.duration_periods;
+      llm.assumptions.push("Times were mapped to periods by the deterministic parser.");
+    }
     if (llm.attendance === null && basic.attendance !== null) llm.attendance = basic.attendance;
     if (!llm.windows.length && basic.windows.length) llm.windows = basic.windows;
     if (llm.duration_periods === null && basic.duration_periods !== null)

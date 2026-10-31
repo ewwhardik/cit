@@ -144,7 +144,16 @@ function partOfDayHint(text: string): Meridiem {
 }
 
 export function parseBookingText(raw: string, ctx: ParseContext): BookingDraft {
+  return parseBookingTextDetailed(raw, ctx).draft;
+}
+
+/** Also reports whether the times came from explicit clock times (used to cross-check LLM output). */
+export function parseBookingTextDetailed(
+  raw: string,
+  ctx: ParseContext,
+): { draft: BookingDraft; explicitTime: boolean } {
   const d = emptyDraft();
+  let explicitTime = false;
   const text = ` ${raw.toLowerCase().replace(/[–—]/g, "-").replace(/\s+/g, " ")} `;
   let rest = text;
 
@@ -223,6 +232,7 @@ export function parseBookingText(raw: string, ctx: ParseContext): BookingDraft {
   if (range && range[4] === "midnight") range[4] = "12";
   const single = rest.match(/\b(?:at|from|by|around)?\s*(\d{1,2})(?:[:.](\d{2}))?\s*(am|pm|baje|o'?clock)\b/);
   if (range?.[1] && range[4]) {
+    explicitTime = true;
     const endMer = (range[6] === "am" || range[6] === "pm" ? range[6] : null) as Meridiem;
     const startMer = (range[3] as Meridiem) ?? null;
     const e = /midnight/.test(range[0]) ? { h: 24, assumed: false } : to24(Number(range[4]), endMer, hint);
@@ -238,6 +248,7 @@ export function parseBookingText(raw: string, ctx: ParseContext): BookingDraft {
     if (fromP === null || toP === null)
       d.ambiguities.push("Part of that time range is outside bookable hours (08:00–13:00, 14:00–22:00).");
   } else if (single?.[1]) {
+    explicitTime = true;
     const mer = (single[3] === "am" || single[3] === "pm" ? single[3] : null) as Meridiem;
     const s = to24(Number(single[1]), mer, hint);
     fromP = clockToPeriodStart(s.h);
@@ -293,10 +304,13 @@ export function parseBookingText(raw: string, ctx: ParseContext): BookingDraft {
     d.room_types.push("classroom");
 
   // ---- named room (codes like LH-5, SH-2, CR-101, AUD, OAT; unknown ones like LHC-5 are kept and flagged)
-  const code = raw
-    .match(/\b([A-Za-z]{2,5})[- ]?(\d{1,3})\b/g)
-    ?.find((c) => !/^(p|br|f|y|ex|s|h)\d/i.test(c.replace(/[- ]/g, "")));
-  if (code) d.requested_room = code.toUpperCase().replace(" ", "-");
+  // Room codes: "LH-5", "SH2", "CR-101" (capitals, or lowercase with a hyphen) - never "maybe 150".
+  const code =
+    raw
+      .match(/\b([A-Z]{2,5})-?(\d{1,3})\b/g)
+      ?.find((c) => !/^(P|BR|F|Y|EX|S|H)\d/i.test(c.replace(/-/g, ""))) ??
+    raw.match(/\b([a-z]{2,4})-(\d{1,3})\b/g)?.[0];
+  if (code) d.requested_room = code.toUpperCase();
   else if (/\b(aud|auditorium|main auditorium)\b/.test(rest) && ctx.rooms.some((r) => r.id === "AUD"))
     d.requested_room = "AUD";
   else if (/\boat\b|open air theatre/.test(rest) && ctx.rooms.some((r) => r.id === "OAT"))
@@ -359,7 +373,7 @@ export function parseBookingText(raw: string, ctx: ParseContext): BookingDraft {
   }
 
   d.title = deriveTitle(raw, rest);
-  return d;
+  return { draft: d, explicitTime: explicitTime && d.windows.length > 0 };
 }
 
 function deriveTitle(raw: string, lower: string): string {
@@ -503,6 +517,20 @@ export function normalizeDraft(input: BookingDraft, ctx: ParseContext): BookingD
   }
 
   // Requested room: resolve, flag unknown, and check it against the stated needs.
+  // A generic phrase ("seminar hall", "auditorium", "a lab") is a room type, not a named room.
+  if (d.requested_room) {
+    const phrase = d.requested_room
+      .toLowerCase()
+      .replace(/^(the|a|an|any)\s+/, "")
+      .trim();
+    const typeHit = TYPE_PATTERNS.find(([re]) => re.test(` ${phrase} `) && !/\d/.test(phrase));
+    if (typeHit || /^(hall|room|lab|venue|classroom)s?$/.test(phrase)) {
+      const t = typeHit?.[1];
+      if (t && !d.room_types.includes(t)) d.room_types.push(t);
+      const ofType = t ? ctx.rooms.filter((r) => r.type === t && r.allowed_uses.includes("event")) : [];
+      d.requested_room = ofType.length === 1 ? ofType[0]!.id : null;
+    }
+  }
   if (d.requested_room) {
     const exact = ctx.rooms.find((r) => roomKey(r.id) === roomKey(d.requested_room ?? ""));
     if (!exact) {

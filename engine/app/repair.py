@@ -130,7 +130,11 @@ def repair(
         if not res.ok:
             return {
                 "status": "infeasible" if res.status == "infeasible" else res.status,
-                "diagnostics": diagnose(ds_after, base, restrict, workers=workers, time_limit_s=min(30.0, time_limit_s))
+                "diagnostics": (
+                    diagnose(ds_after, base, restrict, workers=workers, time_limit_s=min(30.0, time_limit_s))
+                    if res.status == "infeasible"
+                    else []
+                )
                 or res.diagnostics
                 or ["No valid timetable satisfies the changed constraints."],
                 "broken_before": broken,

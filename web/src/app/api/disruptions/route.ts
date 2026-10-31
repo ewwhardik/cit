@@ -28,7 +28,7 @@ export async function POST(req: Request) {
       dataset: ds.json,
       changes: parsed.data,
       baseline: version.schedule,
-      time_limit_s: Math.min(180, Math.max(20, Number(body.time_limit_s) || 60)),
+      time_limit_s: Math.min(240, Math.max(30, Number(body.time_limit_s) || 90)),
     });
     const [job] = await db
       .insert(schema.jobs)

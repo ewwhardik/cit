@@ -62,7 +62,13 @@ export default async function TimetablePage({
         ? (ds.json.student_groups.find((g) => g.department === user.department)?.id ?? options.group[0]?.id)
         : options[view][0]?.id;
   const id = sp.id && options[view].some((o) => o.id === sp.id) ? sp.id : (fallback ?? "");
-  const blocks = buildBlocks(ds.json, version.schedule, view, id);
+  const facultyDept = new Map(ds.json.faculty.map((f) => [f.id, f.department]));
+  const moveMode = user.role === "admin" ? "apply" : user.role === "club" ? null : "propose";
+  const canMove = (s: (typeof ds.json.sessions)[number]) =>
+    user.role === "admin" ||
+    (user.role === "faculty" && s.faculty_id === user.facultyId) ||
+    (user.role === "dept_coordinator" && facultyDept.get(s.faculty_id) === user.department);
+  const blocks = buildBlocks(ds.json, version.schedule, view, id, canMove);
   const hours = blocks.reduce((n, b) => n + b.duration, 0);
 
   return (
@@ -82,7 +88,14 @@ export default async function TimetablePage({
           <KindLegend />
         </div>
       </div>
-      <TimetableGrid blocks={blocks} emptyLabel="No sessions for this selection." />
+      <TimetableGrid
+        blocks={blocks}
+        emptyLabel="No sessions for this selection."
+        moveMode={moveMode}
+        rooms={ds.json.rooms
+          .filter((r) => r.allowed_uses.some((u) => u === "lecture" || u === "lab"))
+          .map((r) => r.id)}
+      />
     </>
   );
 }

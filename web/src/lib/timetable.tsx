@@ -11,7 +11,13 @@ export function sessionMatches(view: View, id: string, s: Dataset["sessions"][nu
   return roomId === id;
 }
 
-export function buildBlocks(ds: Dataset, schedule: Schedule, view: View, id: string): Block[] {
+export function buildBlocks(
+  ds: Dataset,
+  schedule: Schedule,
+  view: View,
+  id: string,
+  canMove?: (s: Dataset["sessions"][number]) => boolean,
+): Block[] {
   const sessions = new Map(ds.sessions.map((s) => [s.id, s]));
   const faculty = new Map(ds.faculty.map((f) => [f.id, f]));
   const courses = new Map(ds.courses.map((c) => [c.id, c as { id: string; name?: string }]));
@@ -25,6 +31,8 @@ export function buildBlocks(ds: Dataset, schedule: Schedule, view: View, id: str
     const room = rooms.get(p.room_id);
     blocks.push({
       key: p.session_id,
+      sessionId: p.session_id,
+      movable: canMove ? canMove(s) : false,
       day: p.day,
       start: p.start_period,
       duration: s.duration,

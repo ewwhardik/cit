@@ -7,6 +7,7 @@ import { engine } from "../engine";
 import type { CurrentUser } from "../session";
 import { AI, aiConfigured, aiFailureReason, anthropic } from "./client";
 import { demoToday } from "./context";
+import { type GroqMessage, groqChat } from "./groq";
 import { ASSISTANT_TOOLS, assistantSystemPrompt } from "./prompts/assistant";
 
 const Day = z.enum(["MON", "TUE", "WED", "THU", "FRI"]);
@@ -116,6 +117,7 @@ export async function runAssistant(ctx: Ctx, text: string): Promise<AssistantRes
       ...fallbackAssistant(ctx, text),
       notice: "AI is not configured; used the basic request parser.",
     };
+  if (AI.provider === "groq") return runGroqAssistant(ctx, text);
   const steps: string[] = [];
   const messages: Anthropic.MessageParam[] = [{ role: "user", content: text.slice(0, 2000) }];
   const system = assistantSystemPrompt({
@@ -197,6 +199,102 @@ export async function runAssistant(ctx: Ctx, text: string): Promise<AssistantRes
         }
       }
       messages.push({ role: "user", content: results });
+    }
+    return {
+      ...fallbackAssistant(ctx, text),
+      notice: "The AI took too many steps; used the basic request parser.",
+    };
+  } catch (err) {
+    return {
+      ...fallbackAssistant(ctx, text),
+      notice: `${aiFailureReason(err)}; used the basic request parser.`,
+    };
+  }
+}
+
+/** Same loop on Groq (OpenAI-compatible tool calling). */
+async function runGroqAssistant(ctx: Ctx, text: string): Promise<AssistantResult> {
+  const steps: string[] = [];
+  const tools = ASSISTANT_TOOLS.map((t) => ({
+    type: "function" as const,
+    function: { name: t.name, description: t.description, parameters: t.input_schema },
+  }));
+  const messages: GroqMessage[] = [
+    {
+      role: "system",
+      content: assistantSystemPrompt({
+        userName: ctx.user.name,
+        role: ctx.user.role,
+        facultyId: ctx.user.facultyId,
+        department: ctx.user.department,
+        today: demoToday().weekday,
+      }),
+    },
+    { role: "user", content: text.slice(0, 2000) },
+  ];
+  try {
+    for (let turn = 0; turn < 6; turn++) {
+      const res = await groqChat(
+        {
+          model: AI.assistModel,
+          messages,
+          tools,
+          tool_choice: "auto",
+          reasoning_effort: "medium",
+          max_completion_tokens: 6000,
+        },
+        Math.max(AI.timeoutMs * 4, 25_000),
+      );
+      const msg = res.choices[0]?.message;
+      if (!msg) break;
+      const calls = msg.tool_calls ?? [];
+      const propose = calls.find((c) => c.function.name === "propose_change");
+      if (propose) {
+        let input: { summary?: string; ops?: unknown[] } = {};
+        try {
+          input = JSON.parse(propose.function.arguments || "{}");
+        } catch {
+          return {
+            ...fallbackAssistant(ctx, text),
+            notice: "The AI's proposal was malformed; used the basic request parser.",
+          };
+        }
+        const parsed = z.array(ChangeOp).safeParse(input.ops ?? []);
+        if (!parsed.success)
+          return {
+            ...fallbackAssistant(ctx, text),
+            notice: "The AI's proposal was malformed; used the basic request parser.",
+          };
+        steps.push("propose_change");
+        return {
+          reply: msg.content?.trim() || input.summary || "",
+          summary: input.summary ?? "",
+          ops: parsed.data,
+          source: "llm",
+          notice: null,
+          steps,
+        };
+      }
+      if (!calls.length)
+        return {
+          reply: (msg.content ?? "").trim(),
+          summary: "",
+          ops: [],
+          source: "llm",
+          notice: null,
+          steps,
+        };
+      messages.push({ role: "assistant", content: msg.content ?? null, tool_calls: calls });
+      for (const c of calls) {
+        steps.push(c.function.name);
+        let content: string;
+        try {
+          content = await runTool(ctx, c.function.name, JSON.parse(c.function.arguments || "{}"));
+        } catch (err) {
+          content = `Tool failed: ${(err as Error).message}`;
+        }
+        messages.push({ role: "tool", tool_call_id: c.id, content });
+      }
     }
     return {
       ...fallbackAssistant(ctx, text),
