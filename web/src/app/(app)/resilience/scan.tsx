@@ -105,7 +105,7 @@ export function ResilienceScan({
               This scan is for version #{saved?.versionId}; the timetable has changed since. Run it again.
             </p>
           ) : null}
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
             <ScoreRing score={r.summary.score} />
             <Tile
               label="Scenarios"
@@ -211,7 +211,7 @@ function ScoreRing({ score }: { score: number }) {
   const r = 26;
   const c = 2 * Math.PI * r;
   return (
-    <Card className="col-span-2 flex items-center gap-4 p-4 lg:col-span-1">
+    <Card className="col-span-2 flex items-center gap-4 p-4">
       <svg viewBox="0 0 64 64" className="size-16 shrink-0 -rotate-90" aria-hidden>
         <circle cx="32" cy="32" r={r} fill="none" stroke="var(--gray-3)" strokeWidth="7" />
         <circle
