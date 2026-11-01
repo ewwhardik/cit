@@ -17,14 +17,16 @@ export const metadata: Metadata = { title: "My requests" };
 
 export default async function RequestsPage() {
   const user = await requireUser();
-  const bookings = await db.query.bookingRequests.findMany({
-    where: eq(schema.bookingRequests.requesterUserId, user.id),
-    orderBy: desc(schema.bookingRequests.createdAt),
-  });
-  const proposals = await db.query.proposals.findMany({
-    where: eq(schema.proposals.requestedBy, user.id),
-    orderBy: desc(schema.proposals.createdAt),
-  });
+  const [bookings, proposals] = await Promise.all([
+    db.query.bookingRequests.findMany({
+      where: eq(schema.bookingRequests.requesterUserId, user.id),
+      orderBy: desc(schema.bookingRequests.createdAt),
+    }),
+    db.query.proposals.findMany({
+      where: eq(schema.proposals.requestedBy, user.id),
+      orderBy: desc(schema.proposals.createdAt),
+    }),
+  ]);
   return (
     <>
       <PageHeader

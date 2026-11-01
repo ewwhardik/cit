@@ -1,4 +1,3 @@
-import { count, eq } from "drizzle-orm";
 import { GuideButton } from "@/components/guide/guide-button";
 import { Navigator } from "@/components/guide/navigator";
 import { Tour } from "@/components/guide/tour";
@@ -6,27 +5,16 @@ import { CommandMenu, type Jump } from "@/components/shell/command-menu";
 import { mobileNavFor, navFor, ROLE_LABEL } from "@/components/shell/nav";
 import { MobileTabs, SidebarNav } from "@/components/shell/sidebar";
 import { SignOutButton, ThemeToggle } from "@/components/shell/user-menu";
-import { getActiveDataset } from "@/server/data";
-import { db, schema } from "@/server/db";
+import { getActiveDataset, getPendingCounts } from "@/server/data";
 import { requireUser } from "@/server/session";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
   const items = navFor(user.role);
-  const ds = await getActiveDataset();
+  // Shared with page via React cache; dataset JSON is cached in-memory across requests.
+  const [ds, pending] = await Promise.all([getActiveDataset(), getPendingCounts(user.role)]);
   const badges: Record<string, number> = {};
-  if (user.role === "admin" || user.role === "dept_coordinator") {
-    const [b] = await db
-      .select({ n: count() })
-      .from(schema.bookingRequests)
-      .where(eq(schema.bookingRequests.status, "pending"));
-    const [p] =
-      user.role === "admin"
-        ? await db.select({ n: count() }).from(schema.proposals).where(eq(schema.proposals.status, "pending"))
-        : [{ n: 0 }];
-    const total = (b?.n ?? 0) + (p?.n ?? 0);
-    if (total) badges["/approvals"] = total;
-  }
+  if (pending.total) badges["/approvals"] = pending.total;
   const jumps: Jump[] = ds
     ? [
         ...ds.json.student_groups.map((g) => ({

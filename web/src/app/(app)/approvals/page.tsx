@@ -12,23 +12,25 @@ export const metadata: Metadata = { title: "Approvals" };
 
 export default async function ApprovalsPage() {
   const user = await requireRole("admin", "dept_coordinator");
-  const ds = await getActiveDataset();
-  const users = new Map((await db.query.user.findMany()).map((u) => [u.id, u]));
-  const bookings = await db.query.bookingRequests.findMany({
-    where: inArray(schema.bookingRequests.status, [
-      "pending",
-      "approved",
-      "alternative_offered",
-      "rejected",
-      "cancelled",
-    ]),
-    orderBy: desc(schema.bookingRequests.createdAt),
-    limit: 100,
-  });
-  const proposals =
+  const [ds, userRows, bookings, proposals] = await Promise.all([
+    getActiveDataset(),
+    db.query.user.findMany(),
+    db.query.bookingRequests.findMany({
+      where: inArray(schema.bookingRequests.status, [
+        "pending",
+        "approved",
+        "alternative_offered",
+        "rejected",
+        "cancelled",
+      ]),
+      orderBy: desc(schema.bookingRequests.createdAt),
+      limit: 100,
+    }),
     user.role === "admin"
-      ? await db.query.proposals.findMany({ orderBy: desc(schema.proposals.createdAt), limit: 50 })
-      : [];
+      ? db.query.proposals.findMany({ orderBy: desc(schema.proposals.createdAt), limit: 50 })
+      : Promise.resolve([]),
+  ]);
+  const users = new Map(userRows.map((u) => [u.id, u]));
   const items: InboxItem[] = [];
   for (const b of bookings) {
     const perm = ds ? await canDecideBooking(user, b, ds.json) : { ok: false, why: "No dataset" };

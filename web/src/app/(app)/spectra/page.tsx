@@ -30,7 +30,12 @@ const EVENT_COLOR = "var(--kind-event)";
 export default async function SpectraPage() {
   const user = await requireUser();
   const ds = await getActiveDataset();
-  const version = ds ? await getCurrentVersion(ds.id) : null;
+  const [version, app] = await Promise.all([
+    ds ? getCurrentVersion(ds.id) : Promise.resolve(null),
+    db.query.bookingRequests.findMany({
+      where: inArray(schema.bookingRequests.status, ["approved", "alternative_offered"]),
+    }),
+  ]);
   if (!ds || !version?.schedule.fest_week) {
     return (
       <>
@@ -53,9 +58,6 @@ export default async function SpectraPage() {
   }
   const fest = version.schedule.fest_week;
   const decisions = new Map(fest.bookings.map((b) => [b.request_id, b]));
-  const app = await db.query.bookingRequests.findMany({
-    where: inArray(schema.bookingRequests.status, ["approved", "alternative_offered"]),
-  });
   const appDecisions = app.map((a) => ({
     d: a.decision as BookingDecision,
     title: (a.payload as { title?: string }).title ?? a.requestId,

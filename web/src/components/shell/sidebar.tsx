@@ -41,6 +41,7 @@ function NavGroup({
           <Link
             key={item.href}
             href={item.href as Route}
+            prefetch={true}
             aria-current={active ? "page" : undefined}
             className={cn(
               "flex h-8 items-center gap-2.5 rounded-[var(--radius-control)] px-2.5 text-[13px] transition-colors duration-[120ms]",
@@ -78,6 +79,7 @@ export function MobileTabs({ items }: { items: NavItem[] }) {
           <Link
             key={item.href}
             href={item.href as Route}
+            prefetch={true}
             aria-current={active ? "page" : undefined}
             className={cn(
               "flex h-14 flex-col items-center justify-center gap-0.5 text-[11px]",

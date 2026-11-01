@@ -7,16 +7,16 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
-import { CountUp, Cursor, MagneticLink, Reveal, SplitWords, TiltCard } from "./fx";
+import { Cosmos } from "./cosmos";
+import { CountUp, Cursor, MagneticLink, MissionClock, Reveal, Scramble, SplitWords, TiltCard } from "./fx";
 import { LiveParser } from "./live-parser";
+import { Orrery, type OrreryBody } from "./orrery";
+import { Singularity } from "./singularity";
 import { KIND_COLOR, KIND_LABEL, type Kind, type LandingData } from "./types";
 
 export type { LandingData } from "./types";
 
-const SkylineScene = dynamic(() => import("./skyline-scene"), {
-  ssr: false,
-  loading: () => <SceneLoading />,
-});
+const SkylineScene = dynamic(() => import("./skyline-scene"), { ssr: false });
 const AgentsScene = dynamic(() => import("./agents-scene"), { ssr: false });
 
 const AGENTS: {
@@ -142,14 +142,18 @@ export function Landing({ data, fontClass }: { data: LandingData; fontClass: str
 
   return (
     <div className={cn("lx-root", fontClass)}>
+      <Cosmos />
       <div aria-hidden className="lx-aurora" />
+      <div aria-hidden className="lx-nebula" />
       <div aria-hidden className="lx-grain" />
       <Cursor />
       <Nav data={data} />
 
       {/* ---------------------------------------------------------------- hero */}
       <header className="relative mx-auto flex max-w-[1360px] flex-col px-4 pt-28 sm:px-6 lg:min-h-[100dvh] lg:pt-36">
-        <div className="relative z-10 max-w-[760px] lg:pointer-events-none">
+        <div aria-hidden className="lx-horizon" />
+        <OrbitRings />
+        <div className="lx-hero-copy relative z-10 max-w-[760px] lg:pointer-events-none">
           <p className="lx-eyebrow">
             <span className="lx-dot" /> Chilika Institute of Technology — Spectra week
           </p>
@@ -174,12 +178,22 @@ export function Landing({ data, fontClass }: { data: LandingData; fontClass: str
               Type a request
             </MagneticLink>
           </div>
+          <p className="lx-hud mt-10">
+            <span>
+              Mission clock <MissionClock />
+            </span>
+            <span>Orbit · Week 07</span>
+            <span>
+              Status{" "}
+              <b className={data.report && data.report.hard > 0 ? "text-[#ff2d55]" : "text-[var(--lx-lime)]"}>
+                {data.report ? (data.report.hard === 0 ? "● Nominal" : "● Anomaly") : "○ Awaiting launch"}
+              </b>
+            </span>
+          </p>
         </div>
 
         <div className="relative mt-8 h-[400px] sm:h-[480px] lg:absolute lg:inset-x-0 lg:top-14 lg:bottom-16 lg:mt-0 lg:h-auto">
-          <div className="lx-scene-mask absolute inset-0">
-            <SkylineScene blocks={data.blocks} solved={data.solved} visible={visible} replay={replay} />
-          </div>
+          <HeroScene blocks={data.blocks} solved={data.solved} visible={visible} replay={replay} />
           <div className="lx-dock absolute right-3 bottom-3 left-3 z-10 flex flex-wrap items-center gap-1.5 sm:left-auto lg:right-6 lg:bottom-0">
             {kinds.map(({ k, n }) => (
               <button
@@ -206,21 +220,9 @@ export function Landing({ data, fontClass }: { data: LandingData; fontClass: str
       </header>
 
       {/* ---------------------------------------------------------------- ticker */}
-      <div className="lx-marquee relative z-10 mt-10 lg:mt-0">
-        <div className="lx-marquee-track">
-          {[0, 1].map((copy) => (
-            <div key={copy} className="lx-marquee-row" aria-hidden={copy === 1}>
-              {ticker.map((t) => (
-                <span key={t} className="lx-marquee-item">
-                  {t}
-                  <span className="lx-star" aria-hidden>
-                    ✺
-                  </span>
-                </span>
-              ))}
-            </div>
-          ))}
-        </div>
+      <div className="lx-marquees relative z-10 mt-10 lg:mt-0">
+        <Marquee items={ticker} className="lx-marquee-back" reverse hidden />
+        <Marquee items={ticker} className="lx-marquee" />
       </div>
 
       {/* ---------------------------------------------------------------- numbers */}
@@ -276,6 +278,23 @@ export function Landing({ data, fontClass }: { data: LandingData; fontClass: str
         </Reveal>
       </section>
 
+      {/* ---------------------------------------------------------------- orbit */}
+      <section id="orbit" className="relative z-10 mx-auto max-w-[1360px] px-4 py-20 sm:px-6 lg:py-28">
+        <SectionHead
+          index="02"
+          eyebrow="The system"
+          title={
+            <>
+              Everything orbits <em>one engine.</em>
+            </>
+          }
+          body="Rooms, people, groups, exams and fest bookings are all bodies in the same system. The solver at the centre holds them in place so no two ever collide. Hover a planet to stop time."
+        />
+        <Reveal delay={120} className="mt-10">
+          <Orrery bodies={orreryBodies(data)} hard={data.report?.hard ?? null} />
+        </Reveal>
+      </section>
+
       {/* ---------------------------------------------------------------- agents */}
       <section
         ref={agentsStage}
@@ -286,7 +305,7 @@ export function Landing({ data, fontClass }: { data: LandingData; fontClass: str
           <AgentsScene stage={agentsStage} slots={orbSlots} palettes={AGENT_PALETTES} active={activeAgent} />
         ) : null}
         <SectionHead
-          index="02"
+          index="03"
           eyebrow="AI helpers"
           title={
             <>
@@ -340,7 +359,7 @@ export function Landing({ data, fontClass }: { data: LandingData; fontClass: str
         className="relative z-10 mx-auto max-w-[1360px] scroll-mt-24 px-4 py-20 sm:px-6 lg:py-28"
       >
         <SectionHead
-          index="03"
+          index="04"
           eyebrow="Try it here"
           title={
             <>
@@ -363,7 +382,7 @@ export function Landing({ data, fontClass }: { data: LandingData; fontClass: str
         className="relative z-10 mx-auto max-w-[1360px] scroll-mt-24 px-4 py-20 sm:px-6 lg:py-28"
       >
         <SectionHead
-          index="05"
+          index="06"
           eyebrow="Demo accounts"
           title={
             <>
@@ -375,11 +394,11 @@ export function Landing({ data, fontClass }: { data: LandingData; fontClass: str
         <RoleCards accounts={data.accounts} password={data.demoPassword} signedIn={data.signedIn} />
       </section>
 
-      <footer className="relative z-10 mx-auto max-w-[1360px] px-4 pt-10 pb-12 sm:px-6">
-        <p className="lx-footer-mark" aria-hidden>
-          CIT/Scheduler
-        </p>
-        <div className="mt-8 flex flex-col gap-3 border-t border-[var(--lx-line)] pt-6 text-[13px] text-[var(--lx-bone)]/45 sm:flex-row sm:items-center sm:justify-between">
+      {/* ---------------------------------------------------------------- finale */}
+      <Finale />
+
+      <footer className="relative z-10 mx-auto max-w-[1360px] px-4 pt-4 pb-12 sm:px-6">
+        <div className="flex flex-col gap-3 border-t border-[var(--lx-line)] pt-6 text-[13px] text-[var(--lx-bone)]/45 sm:flex-row sm:items-center sm:justify-between">
           <p>Built for Crunch Week · Chilika Institute of Technology</p>
           <div className="flex gap-6">
             <Link href={"/login" as never} className="hover:text-[var(--lx-bone)]">
@@ -410,7 +429,9 @@ function SectionHead({
     <Reveal className="relative z-10 grid gap-6 lg:grid-cols-[180px_1fr]">
       <p className="lx-index">({index})</p>
       <div className="max-w-[780px]">
-        <p className="lx-eyebrow">{eyebrow}</p>
+        <p className="lx-eyebrow">
+          <Scramble text={eyebrow} />
+        </p>
         <h2 className="lx-h2 mt-4">{title}</h2>
         {body ? <p className="lx-lede mt-5 max-w-[600px]">{body}</p> : null}
       </div>
@@ -436,6 +457,7 @@ function Nav({ data }: { data: LandingData }) {
       </Link>
       <div className="hidden items-center gap-1 md:flex">
         {[
+          ["#orbit", "The system"],
           ["#agents", "AI helpers"],
           ["#try", "Try it"],
           ["#how", "How it decides"],
@@ -483,7 +505,7 @@ function Pipeline() {
       className="relative z-10 mx-auto max-w-[1360px] scroll-mt-24 px-4 py-20 sm:px-6 lg:py-28"
     >
       <SectionHead
-        index="04"
+        index="05"
         eyebrow="How it decides"
         title={
           <>
@@ -497,6 +519,15 @@ function Pipeline() {
           className="absolute top-0 bottom-0 left-[21px] w-px bg-[var(--lx-line)] lg:top-[21px] lg:right-0 lg:bottom-auto lg:left-0 lg:h-px lg:w-auto"
         >
           <div className="lx-rail size-full" style={{ ["--p" as string]: progress } as React.CSSProperties} />
+          <span
+            className="lx-rail-comet"
+            style={
+              {
+                ["--p" as string]: progress,
+                opacity: progress > 0.01 && progress < 0.995 ? 1 : 0,
+              } as React.CSSProperties
+            }
+          />
         </div>
         <ol className="grid gap-6 lg:grid-cols-4">
           {STEPS.map((s, i) => {
@@ -615,13 +646,150 @@ function Metric({
   );
 }
 
-function SceneLoading() {
+/** The 3D skyline plus a CSS stand-in that holds its place until the first real frame. */
+function HeroScene(props: Omit<React.ComponentProps<typeof SkylineScene>, "onReady">) {
+  const [ready, setReady] = useState(false);
   return (
-    <div className="grid size-full place-items-center">
-      <div className="lx-caption flex items-center gap-3">
-        <span className="lx-spinner" aria-hidden /> Building the week in 3D…
+    <>
+      <div aria-hidden className={cn("lx-scene-ghost", ready && "lx-scene-ghost-out")}>
+        <div className="lx-ghost-grid" />
+        <p className="lx-caption lx-ghost-label">
+          <span className="lx-spinner" /> Assembling the week…
+        </p>
+      </div>
+      <div className="lx-scene-mask absolute inset-0">
+        <SkylineScene {...props} onReady={() => setReady(true)} />
+      </div>
+    </>
+  );
+}
+
+/** Tilted orbit rings with satellites, drifting behind the hero headline. */
+function OrbitRings() {
+  return (
+    <div aria-hidden className="lx-rings">
+      {[0, 1, 2].map((i) => (
+        <div key={i} className="lx-ring-orbit" style={{ "--i": i } as React.CSSProperties}>
+          <div className="lx-ring-arm">
+            <span className="lx-sat" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function Marquee({
+  items,
+  className,
+  reverse,
+  hidden,
+}: {
+  items: string[];
+  className: string;
+  reverse?: boolean;
+  hidden?: boolean;
+}) {
+  return (
+    <div className={className} aria-hidden={hidden || undefined}>
+      <div className={cn("lx-marquee-track", reverse && "lx-marquee-rev")}>
+        {[0, 1].map((copy) => (
+          <div key={copy} className="lx-marquee-row" aria-hidden={copy === 1 || undefined}>
+            {items.map((t) => (
+              <span key={t} className="lx-marquee-item">
+                {t}
+                <span className="lx-star" aria-hidden>
+                  ✺
+                </span>
+              </span>
+            ))}
+          </div>
+        ))}
       </div>
     </div>
+  );
+}
+
+function orreryBodies(data: LandingData): OrreryBody[] {
+  const c = data.counts;
+  return [
+    {
+      key: "groups",
+      label: "Student groups",
+      n: c?.groups ?? null,
+      blurb: "Every cohort gets a week with no clashes, a free lunch hour and no day over the limit.",
+      color: "#efe6d2",
+    },
+    {
+      key: "rooms",
+      label: "Rooms",
+      n: c?.rooms ?? null,
+      blurb: "Each placement is checked against seats, room type and features before it lands.",
+      color: "#ff9a6b",
+    },
+    {
+      key: "faculty",
+      label: "Faculty",
+      n: c?.faculty ?? null,
+      blurb:
+        "Availability is a hard wall; the slots people would rather avoid are kept as clear as possible.",
+      color: "#c6ff3d",
+    },
+    {
+      key: "sessions",
+      label: "Sessions",
+      n: c?.sessions ?? null,
+      blurb: "Lectures, tutorials and labs, all placed in one solve, with multi-hour labs kept in one block.",
+      color: "#ff5a1f",
+    },
+    {
+      key: "exams",
+      label: "Midsem exams",
+      n: c?.exams ?? null,
+      blurb: "Exams take priority over classes and never overlap for the same group.",
+      color: "#cfe0ff",
+    },
+    {
+      key: "requests",
+      label: "Spectra bookings",
+      n: c?.requests ?? null,
+      blurb: "Fest requests are approved, moved or declined in priority order, each with a stated reason.",
+      color: "#ffd28a",
+    },
+  ];
+}
+
+/** The last section: the wordmark as a star field the pointer can swallow. */
+function Finale() {
+  const readout = useRef<HTMLSpanElement>(null);
+  return (
+    <section id="singularity" className="relative z-10 mt-10 lg:mt-16">
+      <div className="mx-auto max-w-[1360px] px-4 sm:px-6">
+        <SectionHead
+          index="07"
+          eyebrow="One more thing"
+          title={
+            <>
+              Go on, <em>bend spacetime.</em>
+            </>
+          }
+          body="Move through the stars to pull them into orbit. Click to set off a supernova; gravity puts the week back together."
+        />
+      </div>
+      <div className="relative mt-10">
+        <Singularity
+          text="CIT/Scheduler"
+          onStats={(captured, total) => {
+            if (readout.current)
+              readout.current.textContent = `${captured.toLocaleString("en-IN")} / ${total.toLocaleString("en-IN")} stars in orbit`;
+          }}
+        />
+      </div>
+      <p className="lx-hud mx-auto -mt-6 max-w-[1360px] justify-between px-4 sm:px-6">
+        <span ref={readout}>Charting stars…</span>
+        <span className="hidden sm:inline-flex">Move · pull · click · supernova</span>
+      </p>
+    </section>
   );
 }
 

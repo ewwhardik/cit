@@ -31,6 +31,8 @@ type Props = {
   visible: Record<Kind, boolean>;
   /** Bump to replay the solve animation. */
   replay: number;
+  /** Called once the shaders are compiled and the first frame is on screen. */
+  onReady?: () => void;
 };
 
 type Hover = { block: LandingBlock; x: number; y: number } | null;
@@ -87,11 +89,13 @@ function labelSprite(text: string, color: string, size = 64): THREE.Sprite {
   return sprite;
 }
 
-export default function SkylineScene({ blocks, solved, visible, replay }: Props) {
+export default function SkylineScene({ blocks, solved, visible, replay, onReady }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const tip = useRef<HTMLDivElement>(null);
   const visibleRef = useRef(visible);
   const replayRef = useRef<() => void>(() => {});
+  const readyRef = useRef(onReady);
+  readyRef.current = onReady;
   const [hover, setHover] = useState<Hover>(null);
   const [failed, setFailed] = useState(false);
 
@@ -113,6 +117,7 @@ export default function SkylineScene({ blocks, solved, visible, replay }: Props)
       });
     } catch {
       setFailed(true);
+      readyRef.current?.();
       return;
     }
     const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -125,6 +130,9 @@ export default function SkylineScene({ blocks, solved, visible, replay }: Props)
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     el.appendChild(renderer.domElement);
     renderer.domElement.style.touchAction = "pan-y";
+    // Hidden until the shaders are compiled, then faded in over the placeholder.
+    renderer.domElement.style.opacity = "0";
+    renderer.domElement.style.transition = "opacity 0.9s cubic-bezier(0.16, 1, 0.3, 1)";
 
     const scene = new THREE.Scene();
     const pmrem = new THREE.PMREMGenerator(renderer);
@@ -446,7 +454,20 @@ export default function SkylineScene({ blocks, solved, visible, replay }: Props)
       pUniforms.uTime.value = reduced ? 0 : now / 1000;
       renderer.render(scene, camera);
     }
-    raf = requestAnimationFrame(tick);
+    // Compile every program up front (in parallel where the driver allows it), so the
+    // first frames don't stall the main thread while the city animates in.
+    let disposed = false;
+    const start = () => {
+      if (disposed) return;
+      t0 = reduced ? -1e6 : performance.now();
+      raf = requestAnimationFrame(tick);
+      requestAnimationFrame(() => {
+        if (disposed) return;
+        renderer.domElement.style.opacity = "1";
+        readyRef.current?.();
+      });
+    };
+    renderer.compileAsync(scene, camera).then(start, start);
 
     const io = new IntersectionObserver((entries) => {
       running = Boolean(entries[0]?.isIntersecting) && !document.hidden;
@@ -458,6 +479,7 @@ export default function SkylineScene({ blocks, solved, visible, replay }: Props)
     document.addEventListener("visibilitychange", onVis);
 
     return () => {
+      disposed = true;
       cancelAnimationFrame(raf);
       ro.disconnect();
       io.disconnect();

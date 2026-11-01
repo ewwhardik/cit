@@ -12,7 +12,12 @@ export const metadata: Metadata = { title: "Find a room" };
 
 export default async function RoomsPage() {
   await requireUser();
-  const ds = await getActiveDataset();
+  const [ds, app] = await Promise.all([
+    getActiveDataset(),
+    db.query.bookingRequests.findMany({
+      where: inArray(schema.bookingRequests.status, ["approved", "alternative_offered"]),
+    }),
+  ]);
   const version = ds ? await getCurrentVersion(ds.id) : null;
   if (!ds || !version) {
     return (
@@ -63,9 +68,6 @@ export default async function RoomsPage() {
         `${titles.get(d.request_id) ?? d.request_id} (event)`,
       );
   }
-  const app = await db.query.bookingRequests.findMany({
-    where: inArray(schema.bookingRequests.status, ["approved", "alternative_offered"]),
-  });
   for (const a of app) {
     const d = a.decision as BookingDecision | null;
     if (d?.room_id && d.day && d.start_period && d.end_period)

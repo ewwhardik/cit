@@ -3,7 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { applyChanges } from "@/lib/changes";
 import { ChangeFile } from "@/lib/schemas/dataset";
 import type { Schedule } from "@/lib/schemas/schedule";
-import { audit, getActiveDataset, getCurrentVersion } from "./data";
+import { audit, clearDataCache, getActiveDataset, getCurrentVersion } from "./data";
 import { db, schema } from "./db";
 import { engine, type RepairResult } from "./engine";
 import type { CurrentUser } from "./session";
@@ -121,6 +121,7 @@ export async function approveProposal(id: number, approver: CurrentUser) {
         .where(eq(schema.disruptions.id, p.disruptionId));
     return v?.id ?? null;
   });
+  clearDataCache();
   await audit(
     approver.id,
     "proposal_approved",

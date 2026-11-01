@@ -438,6 +438,7 @@
       radial-gradient(30% 40% at 18% 12%, rgb(198 255 61 / 0.07), transparent 70%),
       radial-gradient(45% 50% at 50% 90%, rgb(255 90 31 / 0.06), transparent 70%);
     filter: blur(50px);
+    mix-blend-mode: screen;
     animation: lx-drift 20s ease-in-out infinite alternate;
   }
   @keyframes lx-drift {
@@ -1014,18 +1015,6 @@
     color: var(--lx-ink);
   }
 
-  /* footer */
-  .lx-footer-mark {
-    font-family: var(--lx-display), sans-serif;
-    font-size: clamp(56px, 15vw, 230px);
-    font-weight: 800;
-    line-height: 0.85;
-    letter-spacing: -0.06em;
-    color: transparent;
-    -webkit-text-stroke: 1px rgb(239 230 210 / 0.18);
-    white-space: nowrap;
-  }
-
   /* reveal */
   .lx-reveal {
     opacity: 0;
@@ -1062,6 +1051,566 @@
     to {
       transform: rotate(360deg);
     }
+  }
+
+  /* cosmos: starfield canvas, nebula haze, planet horizon */
+  .lx-cosmos {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .lx-nebula {
+    position: fixed;
+    inset: -10%;
+    pointer-events: none;
+    background:
+      radial-gradient(34% 26% at 12% 68%, rgb(124 72 255 / 0.08), transparent 70%),
+      radial-gradient(30% 24% at 88% 84%, rgb(90 150 255 / 0.06), transparent 70%),
+      radial-gradient(22% 18% at 58% 36%, rgb(255 90 31 / 0.05), transparent 70%);
+    mix-blend-mode: screen;
+    animation: lx-nebula 46s ease-in-out infinite alternate;
+  }
+  @keyframes lx-nebula {
+    to {
+      transform: translate3d(4vw, -5vh, 0) rotate(6deg) scale(1.08);
+    }
+  }
+  .lx-horizon {
+    position: absolute;
+    inset-inline: -50vw;
+    bottom: 0;
+    height: 46vh;
+    overflow: hidden;
+    pointer-events: none;
+    mask-image: linear-gradient(to bottom, #000 30%, transparent 96%);
+    -webkit-mask-image: linear-gradient(to bottom, #000 30%, transparent 96%);
+  }
+  .lx-horizon::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 62%;
+    width: max(180vw, 1800px);
+    aspect-ratio: 1;
+    translate: -50% 0;
+    border-radius: 50%;
+    background: radial-gradient(closest-side, #090705 97%, rgb(255 140 80 / 0.5) 99.4%, transparent 100%);
+    box-shadow:
+      0 -1px 0 rgb(255 196 150 / 0.55),
+      0 -18px 50px -12px rgb(255 90 31 / 0.5),
+      0 -70px 180px -30px rgb(255 90 31 / 0.3),
+      0 -120px 260px -60px rgb(198 255 61 / 0.08);
+    animation: lx-breathe 9s ease-in-out infinite;
+  }
+  @keyframes lx-breathe {
+    50% {
+      box-shadow:
+        0 -1px 0 rgb(255 196 150 / 0.7),
+        0 -24px 70px -12px rgb(255 90 31 / 0.6),
+        0 -90px 220px -30px rgb(255 90 31 / 0.34),
+        0 -140px 300px -60px rgb(198 255 61 / 0.1);
+    }
+  }
+
+  /* hero orbit rings: rotateX tilts each ring, the satellite counter-rotates so it stays round */
+  .lx-rings {
+    position: absolute;
+    left: -14%;
+    top: 2%;
+    width: min(1040px, 130vw);
+    aspect-ratio: 1;
+    pointer-events: none;
+    perspective: 1600px;
+  }
+  .lx-ring-orbit {
+    position: absolute;
+    inset: calc(var(--i) * 11% + 4%);
+    border-radius: 50%;
+    border: 1px solid rgb(239 230 210 / 0.07);
+    transform: rotateZ(calc(-16deg + var(--i) * 9deg)) rotateX(68deg);
+    transform-style: preserve-3d;
+  }
+  .lx-ring-orbit:nth-child(2) {
+    border-style: dashed;
+    border-color: rgb(255 90 31 / 0.14);
+  }
+  .lx-ring-arm {
+    position: absolute;
+    inset: 0;
+    transform-style: preserve-3d;
+    animation: lx-orbit-z calc(36s + var(--i) * 18s) linear infinite;
+    animation-delay: calc(var(--i) * -9s);
+  }
+  .lx-sat {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--lx-lime);
+    box-shadow:
+      0 0 0 3px rgb(198 255 61 / 0.15),
+      0 0 18px 2px var(--lx-lime);
+    animation: lx-orbit-counter calc(36s + var(--i) * 18s) linear infinite;
+    animation-delay: calc(var(--i) * -9s);
+    --tilt: 68deg;
+  }
+  .lx-ring-orbit:nth-child(2) .lx-sat {
+    width: 6px;
+    height: 6px;
+    background: var(--lx-ember);
+    box-shadow: 0 0 16px 2px var(--lx-ember);
+  }
+  .lx-ring-orbit:nth-child(3) .lx-sat {
+    background: var(--lx-bone);
+    box-shadow: 0 0 14px 1px var(--lx-bone);
+  }
+  @keyframes lx-orbit-z {
+    to {
+      transform: rotateZ(360deg);
+    }
+  }
+  @keyframes lx-orbit-counter {
+    from {
+      transform: translate(-50%, -50%) rotateZ(0deg) rotateX(calc(var(--tilt) * -1));
+    }
+    to {
+      transform: translate(-50%, -50%) rotateZ(-360deg) rotateX(calc(var(--tilt) * -1));
+    }
+  }
+
+  /* hero copy drifts up and dissolves as you scroll away (scroll-driven, where supported) */
+  @supports (animation-timeline: scroll()) {
+    .lx-hero-copy {
+      animation: lx-hero-out linear both;
+      animation-timeline: scroll(root);
+      animation-range: 0 85vh;
+    }
+    .lx-rings {
+      animation: lx-rings-out linear both;
+      animation-timeline: scroll(root);
+      animation-range: 0 100vh;
+    }
+    .lx-index {
+      animation: lx-index-drift linear both;
+      animation-timeline: view();
+      animation-range: cover;
+    }
+  }
+  @keyframes lx-hero-out {
+    to {
+      transform: translate3d(0, -14vh, 0) scale(0.94);
+      opacity: 0;
+      filter: blur(8px);
+    }
+  }
+  @keyframes lx-rings-out {
+    to {
+      transform: translate3d(0, -20vh, 0) scale(1.25) rotate(-8deg);
+      opacity: 0;
+    }
+  }
+  @keyframes lx-index-drift {
+    from {
+      transform: translate3d(0, 50px, 0);
+    }
+    to {
+      transform: translate3d(0, -50px, 0);
+    }
+  }
+
+  /* telemetry line */
+  .lx-hud {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 22px;
+    font-family: var(--lx-mono), monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgb(239 230 210 / 0.42);
+  }
+  .lx-hud > span {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .lx-hud > span + span::before {
+    content: "";
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: rgb(239 230 210 / 0.25);
+    margin-right: 14px;
+  }
+  .lx-hud b {
+    font-weight: 500;
+  }
+
+  /* shimmering accent words */
+  .lx-h2 em {
+    padding-right: 0.08em;
+    background: linear-gradient(100deg, var(--lx-lime) 0 38%, #f6ffe0 50%, var(--lx-lime) 62% 100%);
+    background-size: 250% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: lx-sheen 7s var(--lx-ease) infinite;
+  }
+  @keyframes lx-sheen {
+    from {
+      background-position: 100% 0;
+    }
+    60%,
+    to {
+      background-position: 0 0;
+    }
+  }
+
+  /* scene placeholder while three.js boots */
+  .lx-scene-ghost {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    transition: opacity 1s var(--lx-ease);
+  }
+  .lx-scene-ghost-out {
+    opacity: 0;
+  }
+  .lx-ghost-grid {
+    position: absolute;
+    left: 15%;
+    right: 15%;
+    top: 30%;
+    bottom: 22%;
+    background-image:
+      linear-gradient(rgb(239 230 210 / 0.1) 1px, transparent 1px),
+      linear-gradient(90deg, rgb(239 230 210 / 0.1) 1px, transparent 1px);
+    background-size: 44px 44px;
+    transform: perspective(800px) rotateX(58deg) rotateZ(-30deg);
+    mask-image: radial-gradient(closest-side, #000, transparent);
+    -webkit-mask-image: radial-gradient(closest-side, #000, transparent);
+    animation: lx-ghost-pan 2.4s linear infinite;
+  }
+  @keyframes lx-ghost-pan {
+    to {
+      background-position: 44px 44px;
+    }
+  }
+  .lx-ghost-label {
+    position: absolute;
+    left: 50%;
+    top: 56%;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    translate: -50% 0;
+    white-space: nowrap;
+  }
+  @media (min-width: 1024px) {
+    .lx-ghost-grid {
+      left: 48%;
+      right: 4%;
+    }
+    .lx-ghost-label {
+      left: 70%;
+    }
+  }
+
+  /* crossing marquee bands */
+  .lx-marquees {
+    position: relative;
+    padding-block: 34px;
+  }
+  .lx-marquee-back {
+    position: absolute;
+    inset-inline: 0;
+    top: 50%;
+    overflow: hidden;
+    translate: 0 -50%;
+    transform: rotate(2.4deg) scale(1.04);
+    border-block: 1px solid var(--lx-line);
+    background: rgb(12 10 8 / 0.6);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    color: transparent;
+    -webkit-text-stroke: 1px rgb(239 230 210 / 0.32);
+  }
+  .lx-marquee-back .lx-star {
+    color: var(--lx-lime);
+    -webkit-text-stroke: 0;
+  }
+  .lx-marquee-rev {
+    animation-direction: reverse;
+    animation-duration: 52s;
+  }
+
+  /* orrery */
+  .lx-orrery {
+    --tilt: 66deg;
+    --lean-x: 0deg;
+    --lean-y: 0deg;
+    position: relative;
+    width: 100%;
+    max-width: 820px;
+    aspect-ratio: 1 / 0.7;
+    margin-inline: auto;
+    perspective: 1500px;
+  }
+  .lx-orrery-lean {
+    position: absolute;
+    inset: 0;
+    transform-style: preserve-3d;
+    transform: rotateX(var(--lean-x)) rotateY(var(--lean-y));
+    transition: transform 1.2s var(--lx-ease);
+  }
+  .lx-orrery-plane {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 100%;
+    aspect-ratio: 1;
+    transform: translate(-50%, -50%) rotateX(var(--tilt));
+    transform-style: preserve-3d;
+  }
+  .lx-orrery-plane::before {
+    content: "";
+    position: absolute;
+    inset: 4%;
+    border-radius: 50%;
+    background: radial-gradient(
+      closest-side,
+      rgb(255 90 31 / 0.16),
+      rgb(255 90 31 / 0.04) 45%,
+      transparent 72%
+    );
+  }
+  .lx-orbit {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: calc(var(--r) * 2);
+    aspect-ratio: 1;
+    translate: -50% -50%;
+    border-radius: 50%;
+    border: 1px solid rgb(239 230 210 / 0.11);
+    transform-style: preserve-3d;
+  }
+  .lx-orbit:nth-child(even) {
+    border-style: dashed;
+    border-color: rgb(239 230 210 / 0.08);
+  }
+  .lx-orbit-arm {
+    position: absolute;
+    inset: 0;
+    transform-style: preserve-3d;
+    animation: lx-orbit-z var(--dur) linear infinite;
+    animation-delay: var(--delay);
+  }
+  .lx-planet {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    width: var(--s);
+    height: var(--s);
+    border-radius: 50%;
+    animation: lx-orbit-counter var(--dur) linear infinite;
+    animation-delay: var(--delay);
+  }
+  .lx-planet::before {
+    content: "";
+    position: absolute;
+    inset: -12px;
+    border-radius: 50%;
+  }
+  .lx-orrery:has(.lx-planet:hover, .lx-planet:focus-visible) :is(.lx-orbit-arm, .lx-planet) {
+    animation-play-state: paused;
+  }
+  .lx-planet-ball {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: radial-gradient(
+      circle at 32% 28%,
+      #fff 0,
+      var(--c) 24%,
+      color-mix(in oklab, var(--c) 42%, #000) 64%,
+      #050403 100%
+    );
+    box-shadow:
+      0 0 26px -4px var(--c),
+      inset -3px -5px 10px rgb(0 0 0 / 0.55);
+    transition:
+      transform 0.6s var(--lx-ease),
+      box-shadow 0.6s var(--lx-ease);
+  }
+  .lx-planet:hover .lx-planet-ball,
+  .lx-planet-on .lx-planet-ball {
+    transform: scale(1.4);
+    box-shadow:
+      0 0 0 5px color-mix(in srgb, var(--c) 20%, transparent),
+      0 0 0 12px color-mix(in srgb, var(--c) 7%, transparent),
+      0 0 54px 4px var(--c),
+      inset -3px -5px 10px rgb(0 0 0 / 0.55);
+  }
+  .lx-planet-ring {
+    position: absolute;
+    inset: -28% -78%;
+    border-radius: 50%;
+    border: 2px solid color-mix(in srgb, var(--c) 75%, transparent);
+    transform: rotate(-22deg) scaleY(0.34);
+    pointer-events: none;
+  }
+  .lx-planet-tag {
+    position: absolute;
+    top: calc(100% + 10px);
+    left: 50%;
+    translate: -50% 0;
+    white-space: nowrap;
+    font-family: var(--lx-mono), monospace;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgb(239 230 210 / 0.45);
+    transition: color 0.4s;
+  }
+  .lx-planet-on .lx-planet-tag {
+    color: var(--lx-bone);
+  }
+  @media (max-width: 639px) {
+    .lx-planet:not(.lx-planet-on) .lx-planet-tag {
+      opacity: 0;
+    }
+  }
+  .lx-sun {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 17%;
+    aspect-ratio: 1;
+    transform: translate(-50%, -50%) rotateX(calc(var(--tilt) * -1));
+    transform-style: preserve-3d;
+  }
+  .lx-sun-core,
+  .lx-sun-mini {
+    border-radius: 50%;
+    background: radial-gradient(circle at 40% 36%, #fff6e0 0, #ffd28a 16%, #ff5a1f 52%, #7a1d00 100%);
+    box-shadow:
+      0 0 40px 6px rgb(255 90 31 / 0.55),
+      0 0 120px 30px rgb(255 90 31 / 0.22);
+  }
+  .lx-sun-core {
+    position: absolute;
+    inset: 14%;
+    animation: lx-sun-pulse 4.5s ease-in-out infinite;
+  }
+  .lx-sun-mini {
+    flex: none;
+    width: 22px;
+    height: 22px;
+    box-shadow: 0 0 18px 2px rgb(255 90 31 / 0.6);
+  }
+  .lx-sun-corona {
+    position: absolute;
+    inset: -34%;
+    border-radius: 50%;
+    background: conic-gradient(
+      from 0deg,
+      transparent,
+      rgb(255 154 107 / 0.45),
+      transparent 22%,
+      rgb(198 255 61 / 0.22),
+      transparent 48%,
+      rgb(255 90 31 / 0.5),
+      transparent 74%,
+      rgb(255 210 138 / 0.35),
+      transparent
+    );
+    filter: blur(12px);
+    mask-image: radial-gradient(closest-side, transparent 34%, #000 50%, transparent 100%);
+    -webkit-mask-image: radial-gradient(closest-side, transparent 34%, #000 50%, transparent 100%);
+    animation: lx-spin 16s linear infinite;
+  }
+  @keyframes lx-sun-pulse {
+    50% {
+      transform: scale(1.06);
+      box-shadow:
+        0 0 56px 10px rgb(255 90 31 / 0.65),
+        0 0 160px 40px rgb(255 90 31 / 0.28);
+    }
+  }
+
+  /* comet riding the pipeline rail */
+  .lx-rail-comet {
+    position: absolute;
+    left: 50%;
+    top: calc(var(--p) * 100%);
+    width: 12px;
+    height: 12px;
+    margin: -6px 0 0 -6px;
+    border-radius: 50%;
+    background: #fbffe9;
+    box-shadow:
+      0 0 0 4px rgb(198 255 61 / 0.22),
+      0 0 26px 6px var(--lx-lime);
+    transition: opacity 0.4s;
+  }
+  .lx-rail-comet::after {
+    content: "";
+    position: absolute;
+    bottom: 50%;
+    left: 50%;
+    width: 2px;
+    height: 90px;
+    translate: -50% 0;
+    background: linear-gradient(to top, var(--lx-lime), transparent);
+  }
+  @media (min-width: 1024px) {
+    .lx-rail-comet {
+      top: 50%;
+      left: calc(var(--p) * 100%);
+    }
+    .lx-rail-comet::after {
+      bottom: auto;
+      left: auto;
+      top: 50%;
+      right: 50%;
+      width: 120px;
+      height: 2px;
+      translate: 0 -50%;
+      background: linear-gradient(to left, var(--lx-lime), transparent);
+    }
+  }
+
+  /* finale */
+  .lx-singularity {
+    position: relative;
+    height: clamp(340px, 64vh, 660px);
+    background: #070605;
+    touch-action: pan-y;
+    user-select: none;
+    mask-image: linear-gradient(to bottom, transparent, #000 16%, #000 84%, transparent);
+    -webkit-mask-image: linear-gradient(to bottom, transparent, #000 16%, #000 84%, transparent);
+  }
+
+  /* comet tail behind the cursor ring */
+  .lx-comet {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 69;
+    width: 7px;
+    height: 7px;
+    margin: -3.5px 0 0 -3.5px;
+    border-radius: 999px;
+    pointer-events: none;
+    background: var(--lx-ember);
+    box-shadow: 0 0 12px 1px var(--lx-ember);
   }
 
   /* cursor */
@@ -1101,8 +1650,15 @@
   }
 }
 html.lx-has-cursor .lx-ring,
-html.lx-has-cursor .lx-cursor-dot {
+html.lx-has-cursor .lx-cursor-dot,
+html.lx-has-cursor .lx-comet {
   display: block;
+}
+/* Over the finale the black hole is the cursor. */
+html.lx-cursor-away .lx-ring,
+html.lx-cursor-away .lx-cursor-dot,
+html.lx-cursor-away .lx-comet {
+  visibility: hidden;
 }
 html.lx-has-cursor .lx-root,
 html.lx-has-cursor .lx-root * {

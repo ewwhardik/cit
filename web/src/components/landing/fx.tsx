@@ -1,6 +1,6 @@
 "use client";
 
-/** Small interaction primitives for the landing page: tilt + spotlight cards, magnetic links, count-up numbers, reveal on scroll. */
+/** Small interaction primitives for the landing page: tilt + spotlight cards, magnetic links, count-up numbers, reveal on scroll, text decode, mission clock, comet cursor. */
 import Link from "next/link";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
@@ -179,10 +179,76 @@ export function SplitWords({ text, delay = 0 }: { text: string; delay?: number }
   );
 }
 
-/** A blend-mode cursor ring that trails the pointer and swells over anything clickable (fine pointers only). */
+const GLYPHS = "!<>-_\\/[]{}=+*^?#01✺◦·";
+
+/** Text that decodes from random glyphs into place the first time it scrolls into view. */
+export function Scramble({ text, className }: { text: string; className?: string }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || prefersReduced()) return;
+    let raf = 0;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (!entries[0]?.isIntersecting) return;
+        io.disconnect();
+        const t0 = performance.now();
+        const run = (now: number) => {
+          const done = (now - t0) / 28;
+          let out = "";
+          for (let i = 0; i < text.length; i++) {
+            const ch = text[i] ?? "";
+            out += ch === " " || i < done - 6 ? ch : GLYPHS[Math.floor(Math.random() * GLYPHS.length)];
+          }
+          el.textContent = out;
+          if (done - 6 < text.length) raf = requestAnimationFrame(run);
+          else el.textContent = text;
+        };
+        raf = requestAnimationFrame(run);
+      },
+      { rootMargin: "0px 0px -10% 0px" },
+    );
+    io.observe(el);
+    return () => {
+      io.disconnect();
+      cancelAnimationFrame(raf);
+    };
+  }, [text]);
+  return (
+    <span className={className}>
+      <span className="sr-only">{text}</span>
+      <span ref={ref} aria-hidden>
+        {text}
+      </span>
+    </span>
+  );
+}
+
+/** "T+00:01:23" since the page opened, ticking without re-rendering anything else. */
+export function MissionClock() {
+  const ref = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    const t0 = Date.now();
+    const tick = () => {
+      const s = Math.floor((Date.now() - t0) / 1000);
+      const pad = (v: number) => String(v).padStart(2, "0");
+      if (ref.current)
+        ref.current.textContent = `T+${pad(Math.floor(s / 3600))}:${pad(Math.floor(s / 60) % 60)}:${pad(s % 60)}`;
+    };
+    tick();
+    const id = window.setInterval(tick, 1000);
+    return () => window.clearInterval(id);
+  }, []);
+  return <span ref={ref} className="tabular-nums" suppressHydrationWarning />;
+}
+
+const TRAIL = 7;
+
+/** A blend-mode cursor ring with a comet tail that swells over anything clickable (fine pointers only). */
 export function Cursor() {
   const dot = useRef<HTMLDivElement>(null);
   const ring = useRef<HTMLDivElement>(null);
+  const tail = useRef<(HTMLDivElement | null)[]>([]);
   useEffect(() => {
     if (!matchMedia("(pointer: fine)").matches || prefersReduced()) return;
     const d = dot.current;
@@ -191,18 +257,33 @@ export function Cursor() {
     document.documentElement.classList.add("lx-has-cursor");
     const target = { x: innerWidth / 2, y: innerHeight / 2 };
     const pos = { ...target };
+    const trail = Array.from({ length: TRAIL }, () => ({ ...target }));
     let raf = 0;
     const move = (e: PointerEvent) => {
       target.x = e.clientX;
       target.y = e.clientY;
       d.style.transform = `translate(${e.clientX}px, ${e.clientY}px)`;
-      const hot = (e.target as Element | null)?.closest("a, button, textarea, input, [role=button]");
-      r.classList.toggle("lx-ring-hot", Boolean(hot));
+      const over = e.target as Element | null;
+      const hot = over?.closest("a, button, textarea, input, [role=button]");
+      r.classList.toggle("lx-ring-hot", Boolean(hot) && !over?.closest("[data-cursor=hide]"));
+      document.documentElement.classList.toggle(
+        "lx-cursor-away",
+        Boolean(over?.closest("[data-cursor=hide]")),
+      );
     };
     const loop = () => {
       pos.x += (target.x - pos.x) * 0.16;
       pos.y += (target.y - pos.y) * 0.16;
       r.style.transform = `translate(${pos.x}px, ${pos.y}px)`;
+      // Each tail bead chases the one in front of it, so fast moves draw a comet.
+      let lead = target;
+      trail.forEach((p, i) => {
+        p.x += (lead.x - p.x) * 0.42;
+        p.y += (lead.y - p.y) * 0.42;
+        lead = p;
+        const bead = tail.current[i];
+        if (bead) bead.style.transform = `translate(${p.x}px, ${p.y}px) scale(${1 - i / TRAIL})`;
+      });
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
@@ -210,11 +291,22 @@ export function Cursor() {
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener("pointermove", move);
-      document.documentElement.classList.remove("lx-has-cursor");
+      document.documentElement.classList.remove("lx-has-cursor", "lx-cursor-away");
     };
   }, []);
   return (
     <>
+      {Array.from({ length: TRAIL }, (_, i) => (
+        <div
+          key={i}
+          ref={(el) => {
+            tail.current[i] = el;
+          }}
+          aria-hidden
+          className="lx-comet"
+          style={{ opacity: 0.55 * (1 - i / TRAIL) }}
+        />
+      ))}
       <div ref={ring} aria-hidden className="lx-ring" />
       <div ref={dot} aria-hidden className="lx-cursor-dot" />
     </>

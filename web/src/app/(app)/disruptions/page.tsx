@@ -31,15 +31,18 @@ async function sampleChangeFile(): Promise<string | null> {
 export default async function DisruptionsPage() {
   await requireRole("admin");
   const ds = await getActiveDataset();
-  const version = ds ? await getCurrentVersion(ds.id) : null;
-  const history = await db.query.disruptions.findMany({
-    orderBy: desc(schema.disruptions.createdAt),
-    limit: 20,
-  });
-  const proposals = await db.query.proposals.findMany({
-    orderBy: desc(schema.proposals.createdAt),
-    limit: 50,
-  });
+  const [version, history, proposals, sample] = await Promise.all([
+    ds ? getCurrentVersion(ds.id) : Promise.resolve(null),
+    db.query.disruptions.findMany({
+      orderBy: desc(schema.disruptions.createdAt),
+      limit: 20,
+    }),
+    db.query.proposals.findMany({
+      orderBy: desc(schema.proposals.createdAt),
+      limit: 50,
+    }),
+    sampleChangeFile(),
+  ]);
   const byDisruption = new Map(proposals.filter((p) => p.disruptionId).map((p) => [p.disruptionId, p.id]));
   return (
     <>
@@ -48,7 +51,7 @@ export default async function DisruptionsPage() {
         description="Load a change file (faculty leave, room closure, new or removed sessions). The engine proposes the fix that moves the fewest sessions; nothing changes until an Admin approves it."
       />
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-        <DisruptionPanel hasTimetable={!!version} sample={await sampleChangeFile()} />
+        <DisruptionPanel hasTimetable={!!version} sample={sample} />
         <Card className="h-fit">
           <CardHeader title="History" />
           {history.length ? (

@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { engineFailure, guard, jsonError } from "@/server/api";
-import { audit } from "@/server/data";
+import { audit, clearDataCache } from "@/server/data";
 import { db, schema } from "@/server/db";
 import { SYSTEM_USER_ID } from "@/server/demo";
 import { engine, type GenerateResult, type RepairResult, type ResilienceResult } from "@/server/engine";
@@ -109,6 +109,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
               .returning({ id: schema.timetableVersions.id });
             return v?.id ?? null;
           });
+          clearDataCache();
           if (versionId)
             await audit(job.createdBy, "timetable_generated", `version:${versionId}`, null, {
               soft: report.soft_total,

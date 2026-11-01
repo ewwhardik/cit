@@ -3,7 +3,7 @@
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { Dataset } from "@/lib/schemas/dataset";
-import { audit } from "@/server/data";
+import { audit, clearDataCache } from "@/server/data";
 import { db, schema } from "@/server/db";
 import { resetDemoData } from "@/server/demo";
 import { requireRole } from "@/server/session";
@@ -14,6 +14,7 @@ export async function resetDemo(): Promise<ActionResult> {
   const user = await requireRole("admin");
   try {
     const r = await resetDemoData(db, user.id);
+    clearDataCache();
     revalidatePath("/", "layout");
     return {
       ok: true,
@@ -47,6 +48,7 @@ export async function uploadDataset(text: string): Promise<ActionResult> {
       .values({ datasetId: res.data.dataset_id, json: res.data, uploadedBy: user.id, isActive: true });
   });
   await audit(user.id, "dataset_uploaded", `dataset:${res.data.dataset_id}`);
+  clearDataCache();
   revalidatePath("/", "layout");
   return {
     ok: true,

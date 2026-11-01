@@ -12,7 +12,7 @@ const pool =
     max: 5,
     ssl: process.env.DATABASE_URL?.includes("sslmode=require") ? { rejectUnauthorized: false } : undefined,
   });
-if (process.env.NODE_ENV !== "production") globalForDb.pool = pool;
+globalForDb.pool = pool;
 
 export const db = drizzle(pool, { schema });
 export { schema };

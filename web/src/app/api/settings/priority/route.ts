@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import type { Dataset } from "@/lib/schemas/dataset";
 import { guard, jsonError, readJson } from "@/server/api";
-import { audit, getActiveDataset } from "@/server/data";
+import { audit, clearDataCache, getActiveDataset } from "@/server/data";
 import { db, schema } from "@/server/db";
 
 /** Exams and regular classes always come first, so no booking can displace the timetable. */
@@ -26,6 +26,7 @@ export async function POST(req: Request) {
   const before = ds.json.priority_order;
   const next: Dataset = { ...ds.json, priority_order: [...LOCKED, ...(order as string[])] };
   await db.update(schema.datasets).set({ json: next }).where(eq(schema.datasets.id, ds.id));
+  clearDataCache();
   await audit(
     user.id,
     "priority_order_changed",

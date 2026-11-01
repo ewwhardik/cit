@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import type { Schedule } from "@/lib/schemas/schedule";
 import { engineFailure, guard, jsonError, readJson } from "@/server/api";
-import { audit, getActiveDataset, getCurrentVersion } from "@/server/data";
+import { audit, clearDataCache, getActiveDataset, getCurrentVersion } from "@/server/data";
 import { db, schema } from "@/server/db";
 import { type DiffRow, engine } from "@/server/engine";
 import { createProposal } from "@/server/proposals";
@@ -113,6 +113,7 @@ export async function POST(req: Request) {
           .returning({ id: schema.timetableVersions.id });
         return v?.id;
       });
+      clearDataCache();
       await audit(user.id, "manual_move_applied", `session:${session.id}`, before.get(session.id), {
         day: b.day,
         start_period: b.start_period,

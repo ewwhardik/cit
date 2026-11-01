@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq } from "drizzle-orm";
+import { asc, desc, eq } from "drizzle-orm";
 import { CalendarX2 } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -29,7 +29,7 @@ import { DAYS, periodForHour, periodRange } from "@/lib/time";
 import { roomUtilisation } from "@/lib/timetable";
 import { cn } from "@/lib/utils";
 import { demoToday } from "@/server/ai/context";
-import { getActiveDataset, getCurrentVersion } from "@/server/data";
+import { getActiveDataset, getCurrentVersion, getPendingCounts } from "@/server/data";
 import { db, schema } from "@/server/db";
 import { requireUser } from "@/server/session";
 
@@ -70,18 +70,10 @@ export default async function DashboardPage({
   const user = await requireUser();
   const sp = await searchParams;
   const ds = await getActiveDataset();
-  // Independent reads in parallel (each is a network round trip to Postgres).
-  const [version, activity, [pendingBookings], [pendingProposals], historyRows] = await Promise.all([
+  // Independent reads in parallel. Pending counts are memoized via React cache from the layout.
+  const [version, activity, historyRows, pendingCounts] = await Promise.all([
     ds ? getCurrentVersion(ds.id) : Promise.resolve(null),
     db.query.auditLog.findMany({ orderBy: desc(schema.auditLog.at), limit: 8 }),
-    db
-      .select({ n: count() })
-      .from(schema.bookingRequests)
-      .where(eq(schema.bookingRequests.status, "pending")),
-    db
-      .select({ n: count() })
-      .from(schema.proposals)
-      .where(and(eq(schema.proposals.status, "pending"))),
     ds
       ? db
           .select({ report: schema.timetableVersions.report })
@@ -90,8 +82,9 @@ export default async function DashboardPage({
           .orderBy(asc(schema.timetableVersions.createdAt))
           .limit(24)
       : Promise.resolve([]),
+    getPendingCounts(user.role),
   ]);
-  const pending = (pendingBookings?.n ?? 0) + (pendingProposals?.n ?? 0);
+  const pending = pendingCounts.total;
   const history = historyRows.map((r) => (r.report as Report).soft_total);
   const today = demoToday();
   const numbers = ds && version ? weekNumbers(ds.json, version.schedule, version.report) : null;
@@ -151,6 +144,7 @@ export default async function DashboardPage({
           canApprove={user.role === "admin" || user.role === "dept_coordinator"}
           activity={activity.map((a) => ({ id: a.id, action: a.action, at: a.at }))}
           history={history}
+          numbers={numbers!}
         />
       )}
     </>
@@ -166,6 +160,7 @@ function Console({
   canApprove,
   activity,
   history,
+  numbers,
 }: {
   ds: Dataset;
   schedule: Schedule;
@@ -175,6 +170,7 @@ function Console({
   canApprove: boolean;
   activity: { id: number; action: string; at: Date }[];
   history: number[];
+  numbers: NonNullable<ReturnType<typeof weekNumbers>>;
 }) {
   const live = liveSlot();
   const slots: Record<string, SlotInfo> = {};
@@ -247,7 +243,7 @@ function Console({
       </div>
 
       <WeekNumbers
-        n={weekNumbers(ds, schedule, report)}
+        n={numbers}
         approvalRate={b ? b.approved / Math.max(1, b.approved + b.alternatives + b.rejected) : null}
       />
 

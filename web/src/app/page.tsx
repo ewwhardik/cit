@@ -15,7 +15,9 @@ export const dynamic = "force-dynamic";
  * first Generate), and the numbers are the engine's own report.
  */
 export default async function Home() {
-  const user = await getCurrentUser();
+  // Session and dataset are independent round trips, so start both at once.
+  const datasetRead = getActiveDataset().catch(() => null);
+  const user = await getCurrentUser().catch(() => null);
   let data: LandingData = {
     signedIn: Boolean(user),
     userName: user?.name ?? null,
@@ -29,7 +31,7 @@ export default async function Home() {
   };
 
   try {
-    const ds = await getActiveDataset();
+    const ds = await datasetRead;
     if (ds) {
       const json = ds.json;
       const version = await getCurrentVersion(ds.id);

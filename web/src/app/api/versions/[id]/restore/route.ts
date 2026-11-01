@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import type { Report } from "@/lib/schemas/schedule";
 import { guard, jsonError } from "@/server/api";
-import { audit } from "@/server/data";
+import { audit, clearDataCache } from "@/server/data";
 import { db, schema } from "@/server/db";
 
 /** Admin: make an earlier, valid timetable version current again (audited). */
@@ -30,6 +30,7 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
       .set({ isCurrent: true })
       .where(eq(schema.timetableVersions.id, id));
   });
+  clearDataCache();
   await audit(user.id, "version_restored", `version:${id}`, { current: prev?.id ?? null }, { current: id });
   return NextResponse.json({ ok: true });
 }
