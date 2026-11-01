@@ -54,9 +54,9 @@
 </p>
 
 ### Key Live Features Highlighted on the Console:
-1. **Live Constraint Monitor:** Real-time deterministic auditing of all 14 hard constraints (H1–H14) and 6 soft penalties (S1–S6). Any change immediately updates the green status seal.
-2. **Executive KPI Header:** Displays current schedule quality grade (**A+ Excellent**), zero hard violations, soft penalty breakdown, booking fulfillment score (67/70), and midsem exam readiness.
-3. **"Right Now" Slot Explorer:** Scrub any day and period (e.g., `MON P1 08:00–09:00`) to inspect running classes, occupied rooms, and instant lists of available venues with capacities.
+1. **Interactive 2.5D Campus Radar:** An isometric 11-zone campus radar with real-time room occupancy beacons (green for lectures, amber for labs, magenta for Spectra fest), a 45-period space-time scrubber (MON P1 to SAT P9), X-Ray zone telemetry HUD inspector, and synthesized Web Audio micro-haptics.
+2. **Live Constraint Monitor:** Real-time deterministic auditing of all 14 hard constraints (H1–H14) and 6 soft penalties (S1–S6). Any change immediately updates the green status seal.
+3. **Executive KPI Header:** Displays current schedule quality grade (**A+ Excellent**), zero hard violations, soft penalty breakdown, booking fulfillment score (67/70), and midsem exam readiness.
 4. **Campus Load Analytics:** Heatmaps of teaching room utilization across peak hours, faculty daily teaching limits (40/40 faculty $\le$ 4h/day), student group daily hour distributions, and Spectra split breakdown.
 5. **Sub-Millisecond Navigation:** Instant client-side tab switching powered by warm in-memory dataset caching, React request-level deduplication, parallelized database fetches, and Next.js route prefetching.
 
