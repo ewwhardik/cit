@@ -50,15 +50,13 @@ Claude Code (Anthropic, Opus-class model) also built the public landing page (`w
 
 ## 3a. What the team did
 
-**Sai Ram Dash** led the project as its owner and product lead:
+**Sai Ram Dash** wrote the logic of the project and directed its implementation in the Claude Code environment:
 
-- Set the direction and priorities at each stage: what to build, in what order, and what "good" looks like against the problem statement and judging criteria.
-- Specified the features and experience: the 3D homepage and its look, the operations-console dashboard, Iru the in-app guide, the optional step-by-step tour, more statistics, and the requirement to stay on free tiers.
-- Made the platform and account decisions (GitHub, Vercel, Neon, Render, GitHub Actions, Groq). Created the accounts and keys, and approved every deployment, push and permission change.
-- Reviewed the results in the browser and sent work back when it wasn't right: colour mismatches, an "AI-generic" look, the guide being optional rather than forced, the need for real CPU for Generate.
-- Owns the submission: testing on the live site, the demo video and this declaration.
+- Worked out how the system should behave: the scheduling and booking rules, the priority and approval workflows, the features, the design and the free-tier platform choices.
+- Instructed Claude Code to implement that logic, then reviewed and tested the results in the browser and sent work back until it matched the problem statement.
+- Created the accounts and keys, approved every deployment, push and permission change, and owns the submission and the video.
 
-Implementation, in the code-writing sense, was done with Claude Code as declared above. Commits made that way carry a `Co-Authored-By: Claude` trailer, so the history shows exactly which changes were AI-assisted.
+Claude Code implemented the code from those instructions, as declared above. AI-assisted commits carry a `Co-Authored-By: Claude` trailer.
 
 ## 4. Running log
 
@@ -73,3 +71,4 @@ Implementation, in the code-writing sense, was done with Claude Code as declared
 | 2026-10-31 | Claude Code (+ Haiku sub-agents) | Project review against the brief; 3D landing page (three.js, Lenis); Render deployment |
 | 2026-10-31 | Claude Code (+ Haiku sub-agents) | Panel ops console, exams/resilience/versions pages, GitHub Actions solver relay, resilience scan in the engine, Vercel/Neon deployment, README rewrite |
 | 2026-10-31 | Claude Code (+ Haiku sub-agents) | Site map registry, validated env, guided tour, Iru navigator (Groq, offline fallback), dashboard hero/stats/polish, calendar export, docs/ARCHITECTURE.md |
+| 2026-11-01 | Claude Code | Admin priority-order editor (§4), Vercel region next to the database, parallel dashboard queries, repo cleanup |

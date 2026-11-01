@@ -93,6 +93,7 @@ flowchart LR
 | Midsem exams view (exam week grid, group filter, half-capacity seats) | ✓ | ✓ | ✓ | ✓ |
 | Find a room; book a venue (AI or manual form, live conflict check); my requests | ✓ | ✓ | ✓ | ✓ |
 | Spectra week board (every decision and reason) | ✓ | ✓ | ✓ | ✓ |
+| **Priority order** editor (problem statement §4; exams and classes stay first) | edit | view | view | view |
 | Change request in plain language (AI) or by form | ✓ | own dept | own sessions | |
 | Move a session with live hard-rule checking | applies | proposes | proposes | |
 | Approvals inbox | everything | own dept's labs | | |
@@ -238,8 +239,10 @@ scripts/         generate_exports.py
 
 ## Team and credits
 
-- **Sai Ram Dash** is the project lead. They set the direction and feature list, made every product, design and platform decision, created the accounts, approved each deployment, and reviewed and tested the app against the problem statement.
-- Implementation was AI-assisted with Claude Code, under that direction. Exactly what the AI did, which models the product calls, and what the AI may not decide are all in [AI_USAGE.md](AI_USAGE.md). Third-party libraries and services are in [THIRD_PARTY.md](THIRD_PARTY.md).
+- **Sai Ram Dash**: author of the project's logic and design. They worked out how the scheduler should behave (the rules, the workflows, the priority and approval logic, the features and the experience) and instructed Claude Code to implement it, then reviewed and tested the result against the problem statement.
+- **Claude Code (Anthropic)**: implementation of that logic in code, working from Sai Ram Dash's instructions inside the Claude Code environment.
+
+Full AI declaration (models the product calls, AI tools used to build it, and what the AI may not decide): [AI_USAGE.md](AI_USAGE.md). Third-party libraries and services: [THIRD_PARTY.md](THIRD_PARTY.md).
 
 ## Known limitations
 
@@ -248,5 +251,4 @@ scripts/         generate_exports.py
 - **Calendar scope:** bookings made in the app are for Week 7 (Spectra week). "Today" is pinned by `DEMO_TODAY`, so words like *kal* resolve predictably.
 - **Exams:** scheduled once at generation. Change files affect the teaching timetable (and Spectra bookings), not the exam schedule.
 - **Drag-and-drop:** manual moves use a slot picker with instant validation; there is no drag-and-drop on the grid.
-- **Priority order** comes from the dataset; there is no UI to edit it yet.
 - **Free AI tiers:** the free Groq tier rate-limits bursts. The deterministic fallback takes over automatically, with a banner.

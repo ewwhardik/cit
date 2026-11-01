@@ -14,6 +14,7 @@ import { DAYS } from "@/lib/time";
 import { getActiveDataset, getCurrentVersion } from "@/server/data";
 import { db, schema } from "@/server/db";
 import { requireUser } from "@/server/session";
+import { PriorityEditor } from "./priority-editor";
 
 export const metadata: Metadata = { title: "Spectra week" };
 
@@ -78,7 +79,7 @@ export default async function SpectraPage() {
     <>
       <PageHeader
         title="Spectra week"
-        description="Every Spectra request gets a decision and a reason. Priority: exams › classes › institute events › guest lectures › department events › club events; ties go to whoever asked first. Categories are capped by the requester's role."
+        description="Every Spectra request gets a decision and a reason, decided by the priority order below; ties go to whoever asked first. Categories are capped by the requester's role."
       />
       <div className="grid grid-cols-[minmax(0,1fr)] gap-5">
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
@@ -100,6 +101,8 @@ export default async function SpectraPage() {
             </Card>
           ))}
         </div>
+
+        <PriorityEditor order={ds.json.priority_order} canEdit={user.role === "admin"} />
 
         <Card>
           <CardHeader

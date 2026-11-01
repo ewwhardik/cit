@@ -70,27 +70,29 @@ export default async function DashboardPage({
   const user = await requireUser();
   const sp = await searchParams;
   const ds = await getActiveDataset();
-  const version = ds ? await getCurrentVersion(ds.id) : null;
-  const activity = await db.query.auditLog.findMany({ orderBy: desc(schema.auditLog.at), limit: 8 });
-  const [pendingBookings] = await db
-    .select({ n: count() })
-    .from(schema.bookingRequests)
-    .where(eq(schema.bookingRequests.status, "pending"));
-  const [pendingProposals] = await db
-    .select({ n: count() })
-    .from(schema.proposals)
-    .where(and(eq(schema.proposals.status, "pending")));
-  const pending = (pendingBookings?.n ?? 0) + (pendingProposals?.n ?? 0);
-  const history = ds
-    ? (
-        await db
+  // Independent reads in parallel (each is a network round trip to Postgres).
+  const [version, activity, [pendingBookings], [pendingProposals], historyRows] = await Promise.all([
+    ds ? getCurrentVersion(ds.id) : Promise.resolve(null),
+    db.query.auditLog.findMany({ orderBy: desc(schema.auditLog.at), limit: 8 }),
+    db
+      .select({ n: count() })
+      .from(schema.bookingRequests)
+      .where(eq(schema.bookingRequests.status, "pending")),
+    db
+      .select({ n: count() })
+      .from(schema.proposals)
+      .where(and(eq(schema.proposals.status, "pending"))),
+    ds
+      ? db
           .select({ report: schema.timetableVersions.report })
           .from(schema.timetableVersions)
           .where(eq(schema.timetableVersions.datasetRef, ds.id))
           .orderBy(asc(schema.timetableVersions.createdAt))
           .limit(24)
-      ).map((r) => (r.report as Report).soft_total)
-    : [];
+      : Promise.resolve([]),
+  ]);
+  const pending = (pendingBookings?.n ?? 0) + (pendingProposals?.n ?? 0);
+  const history = historyRows.map((r) => (r.report as Report).soft_total);
   const today = demoToday();
   const numbers = ds && version ? weekNumbers(ds.json, version.schedule, version.report) : null;
 
