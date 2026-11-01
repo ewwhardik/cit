@@ -1,7 +1,11 @@
 /** Shown while any panel page loads its data. Mirrors the page header + content layout. */
 export default function Loading() {
   return (
-    <div aria-busy="true" aria-live="polite" className="animate-in fade-in duration-150 motion-reduce:animate-none">
+    <div
+      aria-busy="true"
+      aria-live="polite"
+      className="animate-in fade-in duration-150 motion-reduce:animate-none"
+    >
       <span className="sr-only">Loading…</span>
       <div className="mb-6 space-y-2">
         <div className="skeleton h-7 w-56" />

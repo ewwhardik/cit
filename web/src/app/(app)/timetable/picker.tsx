@@ -42,7 +42,11 @@ export function TimetablePicker({
             role="tab"
             aria-selected={view === v.key}
             onClick={() => go(v.key, options[v.key][0]?.id ?? "")}
-            onMouseEnter={() => router.prefetch(`/timetable?view=${v.key}&id=${encodeURIComponent(options[v.key][0]?.id ?? "")}` as Route)}
+            onMouseEnter={() =>
+              router.prefetch(
+                `/timetable?view=${v.key}&id=${encodeURIComponent(options[v.key][0]?.id ?? "")}` as Route,
+              )
+            }
             className={cn(
               "h-7 rounded-[5px] px-3 text-[13px] transition-colors duration-[120ms] max-md:h-10",
               view === v.key

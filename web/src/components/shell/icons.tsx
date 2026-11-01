@@ -1,6 +1,7 @@
 import {
   BellRing,
   Bot,
+  Box,
   CalendarDays,
   CircleCheckBig,
   ClipboardList,
@@ -19,6 +20,7 @@ import {
 
 const ICONS: Record<string, LucideIcon> = {
   layout: LayoutGrid,
+  cube: Box,
   calendar: CalendarDays,
   exams: ClipboardList,
   shield: ShieldCheck,

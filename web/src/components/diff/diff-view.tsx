@@ -5,7 +5,9 @@ import { useState } from "react";
 import { type Block, TimetableGrid } from "@/components/timetable/grid";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader } from "@/components/ui/card";
+import type { RoomLite } from "@/lib/campus-zones";
 import { cn } from "@/lib/utils";
+import { MoveMap } from "./move-map";
 
 export type DiffRow = {
   session_id: string;
@@ -91,10 +93,13 @@ export function DiffView({
   rows,
   summary,
   groupBlocks,
+  rooms,
 }: {
   rows: DiffRow[];
   summary: DiffSummary;
   groupBlocks: Record<string, Block[]>;
+  /** When given, moves are also drawn on the campus map. */
+  rooms?: RoomLite[];
 }) {
   const groups = Object.keys(groupBlocks);
   const [group, setGroup] = useState(groups[0] ?? "");
@@ -143,6 +148,15 @@ export function DiffView({
           </p>
         )}
       </Card>
+      {rooms && rows.some((r) => r.from && r.to) ? (
+        <Card>
+          <CardHeader
+            title="Across campus"
+            description="Each arc runs from a session's old building to its new one. Hover a session to trace it."
+          />
+          <MoveMap rows={rows} rooms={rooms} />
+        </Card>
+      ) : null}
       {groups.length ? (
         <Card>
           <CardHeader

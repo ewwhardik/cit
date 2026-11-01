@@ -75,6 +75,14 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
           rows={rows}
           summary={summary}
           groupBlocks={diffGroupBlocks(ds.json, p.schedule as Schedule, rows)}
+          rooms={ds.json.rooms.map((r) => ({
+            id: r.id,
+            name: r.name,
+            type: r.type,
+            capacity: r.capacity,
+            building: r.building ?? "",
+            features: r.features,
+          }))}
         />
         <ReportCard report={p.validation as Report} title="Validation of the proposed timetable" />
       </div>

@@ -172,6 +172,20 @@ python starter/validator.py --data starter/data/cit_public.json --schedule expor
 
 ---
 
+### 6. Spatial Campus Views
+- **3D Campus (`/campus`):** A procedural Three.js campus with no model files. Each campus zone is one building and each room is one storey.
+- **Live Windows:** Each storey's windows light up by what runs in that room for the chosen day and period: warm for class, orange for lab, magenta for Spectra event, blue glass for free. The sun moves with the chosen period.
+- **Fly and Walk Modes:** Fly mode orbits the campus, and clicking a building flies to it. Walk mode uses W A S D or the arrow keys, drag to look, Shift to run, an on-screen pad on phones, and collisions with buildings.
+- **Inspector and Step Inside:** The inspector lists each room's class, teacher, groups, seats used and capacity, and features, with Timetable and Book links. "Step inside" opens a walkable interior generated from the room's type and capacity, with the live class on the board and occupied seats filled.
+- **Free Rooms:** "Free rooms" lights the rooms that are free for N+ people.
+- **Rendering:** The 3D campus loads only on its own page, renders only when something changes, pauses off screen, and caps pixel ratio at 1.5.
+- **Campus Radar (Dashboard):** An isometric SVG of the 11 zones with a week scrubber across all 45 teaching periods. Click a zone for an X-ray inspector, and toggle a list view.
+- **Holo-Campus (Find a Room):** A CSS-3D hologram where each room is a floor. Floors glow cyan when they fit the search and are free, red when busy, and faint when filtered out. Drag to orbit, tap a floor for Book or Timetable.
+- **Change Map (Approval Review):** Each moved session is drawn as an arc from its old building to its new one, with room-only and time changes in different colors. Hover to trace.
+- **Spectra Timeline:** A per-day gantt of venues × P1–P13 with the evening band. Bars are colored by priority category, alternatives are striped, and the reason shows on hover.
+
+---
+
 ## System Architecture
 
 ```mermaid

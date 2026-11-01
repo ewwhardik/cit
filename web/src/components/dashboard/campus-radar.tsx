@@ -177,9 +177,7 @@ export function CampusRadar({
               title={sound ? "Mute audio haptics" : "Enable synthesized audio haptics"}
               className={cn(
                 "flex h-6 items-center gap-1 rounded-[6px] px-2 text-[11px] transition-colors max-md:h-8",
-                sound
-                  ? "bg-surface font-medium text-accent shadow-sm"
-                  : "text-gray-8 hover:text-gray-10",
+                sound ? "bg-surface font-medium text-accent shadow-sm" : "text-gray-8 hover:text-gray-10",
               )}
             >
               {sound ? <Volume2 className="size-3" /> : <VolumeX className="size-3 text-gray-7" />}

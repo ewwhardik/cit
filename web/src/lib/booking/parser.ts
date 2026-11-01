@@ -108,7 +108,7 @@ const YEARS: [RegExp, number][] = [
 
 function addDays(day: string, n: number): string {
   const i = WEEK.indexOf(day as (typeof WEEK)[number]);
-  return WEEK[((((i < 0 ? 0 : i) + n) % 7) + 7) % 7] ?? "MON";
+  return WEEK[(((Math.max(i, 0) + n) % 7) + 7) % 7] ?? "MON";
 }
 
 function clockToPeriodStart(h: number): number | null {

@@ -1973,3 +1973,591 @@ html.lx-has-cursor .lx-root textarea {
     border-radius: 4px;
   }
 }
+
+/* ---------------------------------------------------------------- holo campus (rooms) */
+/*
+ * CSS-3D only: one transform on the stage, static faces, and transform/opacity
+ * animations that .holo-paused stops off screen. No filters, no WebGL.
+ */
+@layer components {
+  .holo {
+    --holo: 120 232 255;
+    --holo-busy: 255 92 130;
+    position: relative;
+    height: 440px;
+    overflow: hidden;
+    border-radius: var(--radius-card);
+    border: 1px solid rgb(var(--holo) / 0.18);
+    background:
+      radial-gradient(ellipse 60% 50% at 50% 100%, rgb(var(--holo) / 0.16), transparent 70%),
+      radial-gradient(ellipse 80% 70% at 50% 40%, #0a1a24, #04080c 75%);
+    color: rgb(var(--holo));
+    cursor: grab;
+    touch-action: pan-y;
+    user-select: none;
+    isolation: isolate;
+  }
+  .holo:active {
+    cursor: grabbing;
+  }
+  @media (max-width: 640px) {
+    .holo {
+      height: 340px;
+    }
+  }
+  .holo-scene {
+    position: absolute;
+    inset: 0;
+    perspective: 1500px;
+    perspective-origin: 50% 30%;
+    /* Opacity on the stage itself would flatten preserve-3d, so it flickers here. */
+    animation: holo-flicker 7s steps(1) infinite;
+  }
+  .holo-stage {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform-style: preserve-3d;
+    transform: translateY(24px) scale(var(--fit)) rotateX(var(--rx)) rotateZ(var(--rz));
+    transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .holo:active .holo-stage {
+    transition: none;
+  }
+  .holo-grid {
+    position: absolute;
+    inset: -40px;
+    border: 1px solid rgb(var(--holo) / 0.25);
+    background-image:
+      linear-gradient(rgb(var(--holo) / 0.09) 1px, transparent 1px),
+      linear-gradient(90deg, rgb(var(--holo) / 0.09) 1px, transparent 1px);
+    background-size: 27px 27px;
+    background-position: -1px -1px;
+    mask-image: radial-gradient(closest-side, #000 60%, transparent);
+  }
+  .holo-rings,
+  .holo-sweep {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 640px;
+    height: 640px;
+    margin: -320px 0 0 -320px;
+    border-radius: 50%;
+    pointer-events: none;
+  }
+  .holo-rings {
+    background: repeating-radial-gradient(circle, transparent 0 79px, rgb(var(--holo) / 0.22) 79px 80px);
+    mask-image: radial-gradient(closest-side, #000 70%, transparent);
+  }
+  .holo-sweep {
+    background: conic-gradient(from 0deg, rgb(var(--holo) / 0.28), transparent 50deg);
+    mask-image: radial-gradient(closest-side, #000 75%, transparent);
+    animation: holo-spin 9s linear infinite;
+  }
+  .holo-zone {
+    position: absolute;
+    transform-style: preserve-3d;
+  }
+  .holo-pad {
+    position: absolute;
+    inset: -6px;
+    border: 1px dashed rgb(var(--holo) / 0.3);
+    border-radius: 3px;
+  }
+  .holo-zone-lit .holo-pad {
+    border-style: solid;
+    border-color: rgb(var(--holo) / 0.6);
+    background: rgb(var(--holo) / 0.08);
+    box-shadow: 0 0 18px rgb(var(--holo) / 0.35);
+  }
+  .holo-floor {
+    --c: var(--holo);
+    --a: 0.1;
+    --e: 0.75;
+    position: absolute;
+    inset: 2px;
+    transform-style: preserve-3d;
+    cursor: pointer;
+    outline: none;
+  }
+  .holo-busy {
+    --c: var(--holo-busy);
+    --a: 0.12;
+    --e: 0.6;
+  }
+  .holo-out {
+    --a: 0.02;
+    --e: 0.18;
+  }
+  .holo-f {
+    position: absolute;
+    display: block;
+    background: rgb(var(--c) / var(--a));
+    border: 1px solid rgb(var(--c) / var(--e));
+    transition:
+      background-color 0.25s,
+      border-color 0.25s;
+  }
+  .holo-top {
+    inset: 0;
+    transform: translateZ(var(--h));
+    background-image: linear-gradient(
+      135deg,
+      rgb(var(--c) / calc(var(--a) * 2.4)),
+      rgb(var(--c) / var(--a)) 60%
+    );
+  }
+  .holo-n,
+  .holo-s {
+    left: 0;
+    right: 0;
+    height: var(--h);
+    transform-origin: top;
+    transform: rotateX(90deg);
+  }
+  .holo-n {
+    top: 0;
+  }
+  .holo-s {
+    top: 100%;
+  }
+  .holo-w,
+  .holo-e {
+    top: 0;
+    bottom: 0;
+    width: var(--h);
+    transform-origin: left;
+    transform: rotateY(-90deg);
+  }
+  .holo-w {
+    left: 0;
+  }
+  .holo-e {
+    left: 100%;
+  }
+  .holo-floor:hover,
+  .holo-floor:focus-visible {
+    --a: 0.22;
+    --e: 1;
+  }
+  .holo-sel {
+    --c: 255 255 255;
+    --a: 0.28;
+    --e: 1;
+  }
+  .holo-sel .holo-top {
+    box-shadow: 0 0 24px rgb(var(--holo) / 0.9);
+  }
+  .holo-tag {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    padding: 1px 5px;
+    translate: -50% -50%;
+    border: 1px solid rgb(var(--holo) / 0.5);
+    border-radius: 3px;
+    background: rgb(4 12 18 / 0.7);
+    font-family: var(--font-geist-mono), ui-monospace, monospace;
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    white-space: nowrap;
+    pointer-events: none;
+  }
+  .holo-zone-lit .holo-tag {
+    color: #fff;
+    border-color: rgb(var(--holo));
+  }
+  .holo-beam {
+    position: absolute;
+    left: 50%;
+    bottom: -20px;
+    width: 70%;
+    height: 85%;
+    translate: -50% 0;
+    background: linear-gradient(to top, rgb(var(--holo) / 0.14), transparent);
+    clip-path: polygon(46% 100%, 54% 100%, 100% 0, 0 0);
+    pointer-events: none;
+  }
+  .holo-scan {
+    position: absolute;
+    inset: -100% 0 0;
+    background: repeating-linear-gradient(to bottom, transparent 0 2px, rgb(var(--holo) / 0.05) 2px 3px);
+    pointer-events: none;
+    animation: holo-scan 5s linear infinite;
+  }
+  .holo-hud {
+    position: absolute;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: var(--font-geist-mono), ui-monospace, monospace;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .holo-dim {
+    color: rgb(var(--holo) / 0.6);
+  }
+  .holo-hud-tl {
+    left: 14px;
+    top: 12px;
+    flex-wrap: wrap;
+  }
+  .holo-hud-tr {
+    right: 14px;
+    top: 12px;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+    color: #fff;
+  }
+  .holo-hud-bl {
+    left: 14px;
+    bottom: 12px;
+  }
+  .holo-hud-br {
+    right: 12px;
+    bottom: 10px;
+    gap: 4px;
+  }
+  .holo-hud-br button {
+    display: grid;
+    place-items: center;
+    min-width: 28px;
+    height: 28px;
+    border: 1px solid rgb(var(--holo) / 0.35);
+    border-radius: 6px;
+    background: rgb(4 12 18 / 0.6);
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+  }
+  .holo-hud-br button:hover {
+    border-color: rgb(var(--holo));
+  }
+  .holo-paused .holo-sweep,
+  .holo-paused .holo-scan,
+  .holo-paused .holo-scene {
+    animation-play-state: paused;
+  }
+  @keyframes holo-spin {
+    to {
+      transform: rotate(1turn);
+    }
+  }
+  @keyframes holo-scan {
+    to {
+      transform: translateY(50%);
+    }
+  }
+  @keyframes holo-flicker {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    61% {
+      opacity: 0.86;
+    }
+    62% {
+      opacity: 1;
+    }
+    88% {
+      opacity: 0.92;
+    }
+    89% {
+      opacity: 1;
+    }
+  }
+}
+
+/* ---------------------------------------------------------------- move map (change review) */
+@layer components {
+  .mm-screen {
+    position: relative;
+    overflow: hidden;
+    border-radius: var(--radius-card);
+    background: radial-gradient(ellipse 80% 70% at 50% 35%, #15120f, #0b0a09 75%);
+    color: #efe6d2;
+  }
+  .mm-zone {
+    opacity: 0.55;
+  }
+  .mm-zone-on {
+    opacity: 1;
+  }
+  .mm-zone-on .cr-face-t {
+    stroke: rgb(239 230 210 / 0.5);
+  }
+  .mm-label {
+    fill: rgb(239 230 210 / 0.5);
+    font-family: var(--font-geist-mono), ui-monospace, monospace;
+    font-size: 8px;
+    letter-spacing: 0.08em;
+    text-anchor: middle;
+    pointer-events: none;
+  }
+  .mm-zone-on .mm-label {
+    fill: #fff;
+  }
+  .mm-move {
+    transition: opacity 0.2s;
+  }
+  .mm-dim {
+    opacity: 0.12;
+  }
+  .mm-arc,
+  .mm-arc-glow {
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+  }
+  .mm-arc {
+    stroke-width: 1.6;
+    stroke-dasharray: 5 4;
+    animation: mm-flow 1.2s linear infinite;
+  }
+  .mm-arc-glow {
+    stroke-width: 5;
+    stroke-opacity: 0.14;
+  }
+  .mm-from {
+    fill: #0b0a09;
+    stroke: currentColor;
+    stroke-width: 1.4;
+  }
+  .mm-to {
+    fill: currentColor;
+  }
+  .mm-legend {
+    position: absolute;
+    left: 12px;
+    bottom: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    font-family: var(--font-geist-mono), ui-monospace, monospace;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .mm-legend i {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    margin-right: 4px;
+    border-radius: 2px;
+  }
+  @keyframes mm-flow {
+    to {
+      stroke-dashoffset: -9;
+    }
+  }
+}
+
+/* ---------------------------------------------------------------- 3D campus */
+@layer components {
+  .c3d-stage {
+    position: relative;
+    height: min(68vh, 620px);
+    min-height: 420px;
+    background: linear-gradient(#cfdde6, #e9e4d8);
+  }
+  .c3d-host {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    outline: none;
+    touch-action: none;
+  }
+  .c3d-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    cursor: grab;
+  }
+  .c3d-canvas:active {
+    cursor: grabbing;
+  }
+  .c3d-labels {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+  .c3d-label {
+    position: absolute;
+    left: 0;
+    top: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 3px 7px;
+    border-radius: 6px;
+    background: rgb(18 18 20 / 0.72);
+    color: #fff;
+    font-family: var(--font-geist-mono), ui-monospace, monospace;
+    font-size: 10px;
+    line-height: 1.25;
+    letter-spacing: 0.06em;
+    white-space: nowrap;
+    will-change: transform;
+  }
+  .c3d-label span {
+    color: rgb(255 255 255 / 0.7);
+    font-size: 9px;
+  }
+  .c3d-label[data-sel="true"] {
+    background: var(--accent);
+  }
+  .c3d-ui {
+    position: absolute;
+    z-index: 2;
+    display: flex;
+    gap: 6px;
+  }
+  .c3d-ui-tl {
+    left: 10px;
+    top: 10px;
+  }
+  .c3d-ui-tr {
+    right: 10px;
+    top: 10px;
+  }
+  .c3d-ui-bl {
+    left: 10px;
+    bottom: 10px;
+  }
+  .c3d-ui-bc {
+    left: 50%;
+    bottom: 10px;
+    translate: -50% 0;
+  }
+  .c3d-btn,
+  .c3d-seg {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 32px;
+    padding: 0 10px;
+    border-radius: 8px;
+    background: rgb(18 18 20 / 0.72);
+    color: #fff;
+    font-size: 12px;
+    backdrop-filter: blur(6px);
+  }
+  .c3d-btn:hover {
+    background: rgb(18 18 20 / 0.86);
+  }
+  .c3d-btn-on {
+    background: var(--accent);
+  }
+  .c3d-seg {
+    padding: 3px;
+    gap: 2px;
+  }
+  .c3d-seg button {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 26px;
+    padding: 0 9px;
+    border-radius: 6px;
+    color: rgb(255 255 255 / 0.75);
+  }
+  .c3d-seg button[aria-selected="true"] {
+    background: #fff;
+    color: #111;
+  }
+  .c3d-legend,
+  .c3d-hint {
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 5px 9px;
+    border-radius: 8px;
+    background: rgb(18 18 20 / 0.66);
+    color: #fff;
+    font-size: 11px;
+  }
+  .c3d-legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .c3d-legend i {
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+  }
+  .c3d-loading {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    display: grid;
+    place-content: center;
+    grid-auto-flow: column;
+    align-items: center;
+    gap: 10px;
+    background: linear-gradient(#cfdde6, #e9e4d8);
+    color: #3b4248;
+    font-size: 13px;
+  }
+  .c3d-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgb(0 0 0 / 0.15);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: c3d-spin 0.8s linear infinite;
+  }
+  .c3d-pad {
+    position: absolute;
+    right: 12px;
+    bottom: 12px;
+    z-index: 2;
+    display: grid;
+    grid-template: repeat(2, 44px) / repeat(3, 44px);
+    gap: 4px;
+  }
+  .c3d-pad button {
+    display: grid;
+    place-items: center;
+    border-radius: 10px;
+    background: rgb(18 18 20 / 0.7);
+    color: #fff;
+    touch-action: none;
+    user-select: none;
+  }
+  .c3d-pad button:active {
+    background: var(--accent);
+  }
+  .c3d-pad-f {
+    grid-area: 1 / 2;
+  }
+  .c3d-pad-l {
+    grid-area: 2 / 1;
+  }
+  .c3d-pad-b {
+    grid-area: 2 / 2;
+  }
+  .c3d-pad-r {
+    grid-area: 2 / 3;
+  }
+  .c3d-range {
+    accent-color: var(--accent);
+  }
+  @media (max-width: 640px) {
+    .c3d-stage {
+      height: 62vh;
+      min-height: 380px;
+    }
+    .c3d-legend {
+      max-width: 60%;
+    }
+  }
+  @keyframes c3d-spin {
+    to {
+      transform: rotate(1turn);
+    }
+  }
+}

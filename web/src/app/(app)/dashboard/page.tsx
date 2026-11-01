@@ -1,4 +1,4 @@
-import { asc, desc, eq, inArray } from "drizzle-orm";
+import { asc, desc, eq } from "drizzle-orm";
 import { CalendarX2 } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -11,7 +11,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty";
-import type { RoomLite, SlotState } from "@/lib/campus-zones";
 import { timeAgo } from "@/lib/format";
 import {
   campusHeat,
@@ -19,17 +18,24 @@ import {
   groupLoad,
   HARD_RULES,
   nextFor,
-  nowAt,
   qualityGrade,
   seatFit,
   weekNumbers,
 } from "@/lib/insights";
 import type { Dataset } from "@/lib/schemas/dataset";
-import type { BookingDecision, Report, Schedule } from "@/lib/schemas/schedule";
-import { DAYS, periodForHour, periodRange } from "@/lib/time";
+import type { Report, Schedule } from "@/lib/schemas/schedule";
+import { DAYS, periodRange } from "@/lib/time";
 import { roomUtilisation } from "@/lib/timetable";
 import { cn } from "@/lib/utils";
 import { demoToday } from "@/server/ai/context";
+import {
+  type AppBooking,
+  buildSlots,
+  istHour,
+  liveSlot,
+  loadAppBookings,
+  roomLites,
+} from "@/server/campus-live";
 import { getActiveDataset, getCurrentVersion, getPendingCounts } from "@/server/data";
 import { db, schema } from "@/server/db";
 import { requireUser } from "@/server/session";
@@ -45,24 +51,6 @@ const SOFT_LABEL: Record<string, string> = {
   S6: "Classes at 17:00",
 };
 
-function istHour(): number {
-  return Number(
-    new Intl.DateTimeFormat("en-GB", { hour: "numeric", hour12: false, timeZone: "Asia/Kolkata" }).format(
-      new Date(),
-    ),
-  );
-}
-
-/** The demo week's weekday + the current IST clock, mapped to a teaching period (or the next one). */
-function liveSlot(): { day: string; period: number; isLive: boolean } {
-  const weekday = demoToday().weekday;
-  const hour = istHour();
-  const day = (DAYS as readonly string[]).includes(weekday) ? weekday : "MON";
-  const p = periodForHour(hour);
-  if (p !== null && p <= 9 && day === weekday) return { day, period: p, isLive: true };
-  return { day, period: hour === 13 ? 6 : 1, isLive: false };
-}
-
 export default async function DashboardPage({
   searchParams,
 }: {
@@ -72,7 +60,7 @@ export default async function DashboardPage({
   const sp = await searchParams;
   const ds = await getActiveDataset();
   // Independent reads in parallel. Pending counts are memoized via React cache from the layout.
-  const [version, activity, historyRows, pendingCounts, appRows] = await Promise.all([
+  const [version, activity, historyRows, pendingCounts, appBookings] = await Promise.all([
     ds ? getCurrentVersion(ds.id) : Promise.resolve(null),
     db.query.auditLog.findMany({ orderBy: desc(schema.auditLog.at), limit: 8 }),
     ds
@@ -84,25 +72,8 @@ export default async function DashboardPage({
           .limit(24)
       : Promise.resolve([]),
     getPendingCounts(user.role),
-    db.query.bookingRequests.findMany({
-      where: inArray(schema.bookingRequests.status, ["approved", "alternative_offered"]),
-    }),
+    loadAppBookings(),
   ]);
-  const appBookings = appRows
-    .map((a) => {
-      const d = a.decision as BookingDecision | null;
-      const p = a.payload as { title?: string; attendance?: number } | null;
-      return {
-        id: a.requestId,
-        title: p?.title ?? a.requestId,
-        attendance: p?.attendance ?? 0,
-        room: d?.room_id ?? "",
-        day: d?.day ?? "",
-        from: d?.start_period ?? 0,
-        to: d?.end_period ?? 0,
-      };
-    })
-    .filter((b) => b.room && b.day && b.from && b.to);
   const pending = pendingCounts.total;
   const history = historyRows.map((r) => (r.report as Report).soft_total);
   const today = demoToday();
@@ -192,61 +163,11 @@ function Console({
   activity: { id: number; action: string; at: Date }[];
   history: number[];
   numbers: NonNullable<ReturnType<typeof weekNumbers>>;
-  appBookings: { id: string; title: string; attendance: number; room: string; day: string; from: number; to: number }[];
+  appBookings: AppBooking[];
 }) {
   const live = liveSlot();
-  const slots: Record<string, SlotState> = {};
-  const facultyName = new Map(ds.faculty.map((f) => [f.id, f.name]));
-  const requests = new Map(ds.booking_requests.map((r) => [r.id, r]));
-  // Base fest bookings from generated schedule + approved in-app bookings.
-  const baseEvents = (schedule.fest_week?.bookings ?? []).flatMap((b) =>
-    b.status !== "rejected" && b.day && b.room_id && b.start_period && b.end_period
-      ? [
-          {
-            id: b.request_id,
-            title: requests.get(b.request_id)?.title ?? b.request_id,
-            room: b.room_id,
-            day: b.day,
-            from: b.start_period,
-            to: b.end_period,
-            attendance: requests.get(b.request_id)?.attendance ?? 0,
-          },
-        ]
-      : [],
-  );
-  const events = [...baseEvents, ...appBookings];
-  for (const d of DAYS)
-    for (let p = 1; p <= 9; p++) {
-      const { running, free } = nowAt(ds, schedule, d, p);
-      slots[`${d}|${p}`] = {
-        running: running.map((r) => ({
-          id: r.id,
-          course: r.course,
-          room: r.room,
-          kind: r.kind,
-          groups: r.groups,
-          faculty: facultyName.get(r.faculty) ?? "",
-          size: r.size,
-        })),
-        events: events
-          .filter((e) => e.day === d && p >= e.from && p <= e.to)
-          .map((e) => ({
-            id: e.id,
-            title: e.title,
-            room: e.room,
-            attendance: e.attendance,
-          })),
-        free: free.map((r) => ({ id: r.id, capacity: r.capacity, type: r.type })),
-      };
-    }
-  const rooms: RoomLite[] = ds.rooms.map((r) => ({
-    id: r.id,
-    name: r.name,
-    type: r.type,
-    capacity: r.capacity,
-    building: r.building ?? "",
-    features: r.features,
-  }));
+  const slots = buildSlots(ds, schedule, appBookings);
+  const rooms = roomLites(ds);
   const mine = facultyId ? nextFor(ds, schedule, facultyId, live.day, live.period) : null;
   const next = mine
     ? {

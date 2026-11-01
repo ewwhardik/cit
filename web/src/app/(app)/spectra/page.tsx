@@ -10,11 +10,11 @@ import { EmptyState } from "@/components/ui/empty";
 import { STATUS_LABEL, slotText } from "@/lib/format";
 import type { BookingRequest, Dataset } from "@/lib/schemas/dataset";
 import type { BookingDecision } from "@/lib/schemas/schedule";
-import { DAYS } from "@/lib/time";
 import { getActiveDataset, getCurrentVersion } from "@/server/data";
 import { db, schema } from "@/server/db";
 import { requireUser } from "@/server/session";
 import { PriorityEditor } from "./priority-editor";
+import { type TimelineItem, VenueTimeline } from "./venue-timeline";
 
 export const metadata: Metadata = { title: "Spectra week" };
 
@@ -24,8 +24,6 @@ function effectiveCategory(ds: Dataset, r: BookingRequest) {
   const asked = order.includes(r.requested_category) ? order.indexOf(r.requested_category) : order.length - 1;
   return order[Math.max(asked, order.indexOf(cap))] ?? "club_event";
 }
-
-const EVENT_COLOR = "var(--kind-event)";
 
 export default async function SpectraPage() {
   const user = await requireUser();
@@ -61,21 +59,43 @@ export default async function SpectraPage() {
   const appDecisions = app.map((a) => ({
     d: a.decision as BookingDecision,
     title: (a.payload as { title?: string }).title ?? a.requestId,
+    category: (a.payload as { category?: string }).category ?? "club_event",
   }));
   const b = version.report.bookings;
   const cancelled = new Set(ds.json.cancellations.map((c) => c.request_id));
 
-  // Evening board: venue x day for P10-P13 (plus any daytime placements listed below).
+  // Timeline: every placed booking (dataset + app), with its effective category.
   const placed = [
     ...fest.bookings
       .filter((d) => d.room_id)
-      .map((d) => ({
-        d,
-        title: ds.json.booking_requests.find((r) => r.id === d.request_id)?.title ?? d.request_id,
-      })),
+      .map((d) => {
+        const req = ds.json.booking_requests.find((r) => r.id === d.request_id);
+        return {
+          d,
+          title: req?.title ?? d.request_id,
+          category: req ? effectiveCategory(ds.json, req) : "club_event",
+        };
+      }),
     ...appDecisions,
   ];
-  const venues = [...new Set(placed.map((p) => p.d.room_id!))].sort();
+  const items: TimelineItem[] = placed.flatMap((p) => {
+    const { d } = p;
+    if (!d.room_id || !d.day || d.start_period == null || d.end_period == null) return [];
+    return [
+      {
+        id: d.request_id,
+        title: p.title,
+        room: d.room_id,
+        day: d.day,
+        start: d.start_period,
+        end: d.end_period,
+        status: d.status,
+        category: p.category,
+        reason: d.reason ?? "",
+      },
+    ];
+  });
+  const venues = [...new Set(items.map((i) => i.room))].sort();
 
   return (
     <>
@@ -163,54 +183,10 @@ export default async function SpectraPage() {
         <Card>
           <CardHeader
             title="Venues during Spectra week"
-            description="Approved events and alternatives per venue and day (classes run P1–P9)."
+            description="Approved events and alternatives on each day's timeline, coloured by priority. Classes run P1–P9."
           />
-          <div className="overflow-x-auto p-4">
-            <table className="w-full min-w-[720px] border-separate border-spacing-1 text-[12px]">
-              <thead>
-                <tr className="text-gray-8">
-                  <th className="w-24 text-left font-medium">Venue</th>
-                  {DAYS.map((d) => (
-                    <th key={d} className="font-medium">
-                      {d}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {venues.map((v) => (
-                  <tr key={v}>
-                    <td className="tabular align-top text-gray-10">{v}</td>
-                    {DAYS.map((day) => (
-                      <td key={day} className="align-top">
-                        <div className="grid gap-1">
-                          {placed
-                            .filter((p) => p.d.room_id === v && p.d.day === day)
-                            .sort((a, b2) => (a.d.start_period ?? 0) - (b2.d.start_period ?? 0))
-                            .map((p) => (
-                              <div
-                                key={p.d.request_id}
-                                title={p.d.reason}
-                                className="rounded-[5px] border-l-2 px-1.5 py-1"
-                                style={{
-                                  borderLeftColor: EVENT_COLOR,
-                                  background: `color-mix(in oklch, ${EVENT_COLOR} 12%, var(--surface))`,
-                                }}
-                              >
-                                <p className="truncate font-medium">{p.title}</p>
-                                <p className="tabular text-[10px] text-gray-9">
-                                  P{p.d.start_period}–{p.d.end_period}
-                                  {p.d.status === "alternative_offered" ? " · alt" : ""}
-                                </p>
-                              </div>
-                            ))}
-                        </div>
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="p-4">
+            <VenueTimeline items={items} venues={venues} />
           </div>
           {fest.session_overrides.length ? (
             <div className="border-t border-gray-4 px-4 py-3 text-[12px]">

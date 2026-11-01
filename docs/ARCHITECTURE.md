@@ -136,12 +136,22 @@ The web tier employs multi-tier caching, concurrency, and client-side prefetchin
 
 ## 6. Interactive Visualizations & Spatial UI
 
+### 6.1 Landing Page Spatial FX
 The landing page features high-performance visual and spatial components designed with zero GPU hitching and full accessibility fallbacks:
 
 1. **3D WebGL Campus Skyline (`skyline-scene.tsx`):** Renders the Week-7 schedule as a spatial 3D city in Three.js where buildings represent venues, floors represent time periods, and materials reflect session types. Uses `renderer.compileAsync` to pre-compile all shader programs in parallel before fading in over the placeholder grid, eliminating GPU stalls.
 2. **Interactive 3D Orrery (`orrery.tsx`):** A lightweight solar system implemented in pure CSS 3D (`transform-style: preserve-3d`), avoiding additional WebGL context overhead. Campus cohorts (groups, rooms, faculty, sessions, exams, bookings) orbit the engine sun scaled by dataset volume, with pointer-tilt physics and time freezing on hover.
 3. **Singularity Particle Wordmark (`singularity.tsx`):** Particle typography engine using typed `Float32Array` struct-of-arrays to eliminate per-frame garbage collection. Simulates a cursor black hole with accretion glow, orbital star capture, and explosive supernova shockwaves upon clicking.
 4. **Cosmos Starfield Canvas (`cosmos.tsx`):** Multi-layer 2D canvas starfield with scroll parallax, warp streaks, random shooting stars, and cursor gravitational light deflection (`LENS = 150`). Pauses automatically on hidden tabs via `visibilitychange` and respects `prefers-reduced-motion`.
+
+### 6.2 In-App Spatial & Operations Views
+The operations deck integrates full spatial awareness directly into day-to-day scheduling workflows:
+
+1. **3D Walkable Digital Twin (`/campus`):** A procedural Three.js campus requiring 0 external 3D asset downloads. Each campus zone is a building and each room is a storey lit by what runs there in the selected period (warm for lecture, orange for lab, magenta for Spectra, blue for free). Features smooth Orbit controls, First-Person Walk mode (WASD + Shift sprint + collision detection + mobile touch d-pad), live solar shadows, and procedural interior walk-in layouts (`room-layout.ts`) generating desks, computer labs, or tiered amphitheatre seating based on room capacity.
+2. **Holo-Campus Venue Seeker (`/rooms`):** A CSS-3D rotatable tower hologram (`holo-campus.tsx`) where each room is an interactive floor prism. Floors dynamically glow cyan when matching capacity and feature filters, red/amber when busy, or faint when filtered out.
+3. **Relocation Flow Arc Map (`/approvals/p/[id]`):** An isometric SVG vector map (`move-map.tsx`) connecting displaced sessions with animated directional arcs from old buildings to new destinations, clearly distinguishing room-only moves from time shifts.
+4. **Spectra Venue Timeline (`/spectra`):** A per-day venue gantt chart (`venue-timeline.tsx`) visualizing all approved and alternative festival bookings across P1–P13, highlighting the evening event band and lunch breaks with tie-break priority color coding.
+5. **Campus Live State Service (`src/server/campus-live.ts`):** Centralized service that computes real-time IST clock-to-period mappings and synthesizes baseline timetable blocks, festival bookings, and active in-app reservations into unified slot states.
 
 ## 7. Security notes
 
@@ -155,6 +165,6 @@ The landing page features high-performance visual and spatial components designe
 | Suite | Command | Covers |
 | --- | --- | --- |
 | Engine | `cd engine && uv run pytest` | 189 tests: checker vs official validator (oracle), solvers, repair, resilience, API |
-| Web | `cd web && pnpm test` | 39 tests: Hinglish parser, time maps, navigator fallback, tour steps, ICS export |
+| Web | `cd web && pnpm test` | 82 tests: Hinglish parser, 3D room layouts, time maps, audio haptics, campus zones, navigator fallback, tour steps, ICS export |
 | Types and lint | `pnpm typecheck && pnpm lint` | Strict TypeScript (`noUncheckedIndexedAccess`), Biome (0 errors) |
 | Production Build | `cd web && pnpm build` | All 33 static & dynamic routes compiled and verified |
