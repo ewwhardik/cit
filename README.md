@@ -172,7 +172,11 @@ python starter/validator.py --data starter/data/cit_public.json --schedule expor
 
 ---
 
-### 6. Spatial Campus Views
+### 6. Spatial Campus Views & 3D Walkthrough
+<p align="center">
+  <img src="docs/screenshots/spatial_campus.png" alt="3D Walkable Campus Digital Twin" width="95%" />
+</p>
+
 - **3D Campus (`/campus`):** A procedural Three.js campus with no model files. Each campus zone is one building and each room is one storey.
 - **Live Windows:** Each storey's windows light up by what runs in that room for the chosen day and period: warm for class, orange for lab, magenta for Spectra event, blue glass for free. The sun moves with the chosen period.
 - **Fly and Walk Modes:** Fly mode orbits the campus, and clicking a building flies to it. Walk mode uses W A S D or the arrow keys, drag to look, Shift to run, an on-screen pad on phones, and collisions with buildings.
@@ -187,6 +191,10 @@ python starter/validator.py --data starter/data/cit_public.json --schedule expor
 ---
 
 ### 7. Tactical Operations & Scheduling Intelligence
+<p align="center">
+  <img src="docs/screenshots/free_time_seating.png" alt="Common Free Time & Exam Seating Operations" width="95%" />
+</p>
+
 - **Common Free Time (`/free-time`):** Finds slots where multiple student cohorts and faculty members are simultaneously free for make-up lectures, combined electives, or club meetings, complete with a 1-click handoff to Room Finder.
 - **Checkerboard Exam Seating (`/exams`):** Rigorously enforces the problem statement's 50% capacity halving rule, generating alternating checkerboard seating plans with roll-number assignments per student cohort and interactive modal floor plans.
 - **Disruption Impact Matrix (`/disruptions`):** Real-time pre-solve visualization of knocked-out classes, closed periods, and affected student cohorts before invoking the CP-SAT repair engine.
