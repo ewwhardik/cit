@@ -42,17 +42,19 @@ export function GeneratePanel({
   hasDataset,
   datasetLabel,
   relay = false,
+  activeJobId = null,
 }: {
   hasDataset: boolean;
   datasetLabel: string | null;
   relay?: boolean;
+  activeJobId?: number | null;
 }) {
   const router = useRouter();
-  const [jobId, setJobId] = useState<number | null>(null);
+  const [jobId, setJobId] = useState<number | null>(activeJobId);
   const [job, setJob] = useState<JobView | null>(null);
   const [starting, setStarting] = useState(false);
   const [limit, setLimit] = useState(120);
-  const started = useRef<number>(0);
+  const started = useRef<number>(activeJobId ? Date.now() : 0);
   const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
@@ -98,6 +100,9 @@ export function GeneratePanel({
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? "Could not start");
+      if (body.attached) {
+        toast.info("Attached to running generation job", { description: `Job #${body.jobId}` });
+      }
       started.current = Date.now();
       setJobId(body.jobId);
     } catch (err) {

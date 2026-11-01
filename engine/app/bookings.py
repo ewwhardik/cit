@@ -209,7 +209,12 @@ def priority_ranking(ds: Dataset, reqs: Iterable[dict]) -> list[str]:
 
 
 def option_value(ds: Dataset, req: dict, opt: Option, rank: int, n: int) -> int:
-    weight = CATEGORY_WEIGHT.get(ds.effective_category(req), 1)
+    order = ds.priority_order
+    cat = ds.effective_category(req)
+    idx = order.index(cat) if cat in order else len(order) - 1
+    # Dynamic tier weight based on priority_order (matches 5, 4, 3, 2 under default order
+    # and guarantees higher-ranked categories always dominate to prevent priority inversions).
+    weight = max(1, (len(order) - idx) + 1)
     value = 1000 * weight * (2 if opt.approved else 1) + 10 * (n - rank)
     if req.get("requested_room") == opt.room_id:
         value += 3

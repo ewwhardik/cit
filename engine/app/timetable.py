@@ -138,6 +138,7 @@ class TimetableModel:
         self._faculty_constraints()
         self._group_constraints()
         self._event_group_constraints()
+        self._symmetry_constraints()
         if opts.optimize:
             self._soft_objective()
         self._reservations()
@@ -354,6 +355,31 @@ class TimetableModel:
                     self.group_occ[(g, day, p)] = lits
                     if len(lits) > 1:
                         m.AddAtMostOne(lits)
+
+    def _symmetry_constraints(self) -> None:
+        """Break symmetry between interchangeable multi-lecture sessions of the same course and cohort."""
+        if self.opts.baseline or self.opts.allow_unplaced:
+            return
+        ds = self.ds
+        multi: dict[tuple, list[str]] = defaultdict(list)
+        for sid, s in ds.sessions.items():
+            if (
+                s["kind"] == "lecture"
+                and not s.get("basket_slot")
+                and not s.get("fixed_slot")
+                and sid not in self.opts.pinned
+                and sid not in self.opts.restrict
+            ):
+                key = (s["course_id"], tuple(sorted(s["groups"])), s["faculty_id"])
+                multi[key].append(sid)
+        for sids in multi.values():
+            if len(sids) > 1:
+                ordered = sorted(sids)
+                for i in range(len(ordered) - 1):
+                    u1 = self.units.get(self.unit_of.get(ordered[i], ""))
+                    u2 = self.units.get(self.unit_of.get(ordered[i + 1], ""))
+                    if u1 and u2 and u1.key in self.t and u2.key in self.t:
+                        self.model.Add(self.t[u1.key] < self.t[u2.key])
 
     # ----------------------------------------------------------- objective
     def _soft(self, weight: int, expr: Any, key: str) -> None:

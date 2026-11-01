@@ -1,3 +1,4 @@
+import { and, eq, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { engineFailure, guard, jsonError } from "@/server/api";
 import { audit, getActiveDataset } from "@/server/data";
@@ -10,6 +11,21 @@ export async function POST(req: Request) {
   if (user instanceof NextResponse) return user;
   const ds = await getActiveDataset();
   if (!ds) return jsonError("Load a dataset first", 409);
+
+  // If a generation job is already active for this dataset, re-attach to it
+  // rather than dispatching a duplicate runner and causing collisions.
+  const active = await db.query.jobs.findFirst({
+    where: and(
+      eq(schema.jobs.kind, "generate"),
+      eq(schema.jobs.datasetRef, ds.id),
+      inArray(schema.jobs.status, ["queued", "running"]),
+    ),
+    orderBy: (jobs, { desc }) => [desc(jobs.createdAt)],
+  });
+  if (active && Date.now() - active.createdAt.getTime() < 10 * 60_000) {
+    return NextResponse.json({ jobId: active.id, attached: true });
+  }
+
   const body = (await req.json().catch(() => ({}))) as { time_limit_s?: number };
   const cap = engine.relayEnabled() ? 600 : 300;
   const timeLimit = Math.min(cap, Math.max(20, Number(body.time_limit_s) || 120));
