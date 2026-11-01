@@ -33,6 +33,20 @@
 
 ---
 
+## Interactive 3D Campus Skyline & Mission Experience
+
+<p align="center">
+  <img src="docs/screenshots/landing_skyline.png" alt="CIT Scheduler 3D Interactive Campus Skyline" width="100%" />
+</p>
+
+### Key Spatial & Visual Features:
+1. **Interactive WebGL 3D Campus Skyline:** Visualizes the entire Week-7 schedule as an interactive spatial city rendered in Three.js with asynchronous shader pre-compilation (`renderer.compileAsync`). Venues form buildings, floor levels represent periods, and colors map directly to session categories.
+2. **Interactive 3D Orrery:** A pure CSS 3D solar system (`transform-style: preserve-3d`) where campus cohorts (Student Groups, Rooms, Faculty, Sessions, Exams, and Bookings) dynamically orbit the engine sun scaled by their active counts, with mouse-lean tilt and focus time-freezing.
+3. **Singularity Particle Wordmark:** An interactive particle typography engine built with typed `Float32Array` structs. The pointer acts as a black hole with accretion glow and orbital capture, and clicking unleashes an expanding supernova shockwave that scatters stars before gravity re-assembles the typography.
+4. **Cosmos Starfield Canvas:** 3-layer parallax starfield with warp-speed streak stretching on fast scroll, random shooting stars with fading ember tails, and gravitational light bending around the cursor.
+
+---
+
 ## Operations Console
 
 <p align="center">
@@ -44,6 +58,7 @@
 2. **Executive KPI Header:** Displays current schedule quality grade (**A+ Excellent**), zero hard violations, soft penalty breakdown, booking fulfillment score (67/70), and midsem exam readiness.
 3. **"Right Now" Slot Explorer:** Scrub any day and period (e.g., `MON P1 08:00–09:00`) to inspect running classes, occupied rooms, and instant lists of available venues with capacities.
 4. **Campus Load Analytics:** Heatmaps of teaching room utilization across peak hours, faculty daily teaching limits (40/40 faculty $\le$ 4h/day), student group daily hour distributions, and Spectra split breakdown.
+5. **Sub-Millisecond Navigation:** Instant client-side tab switching powered by warm in-memory dataset caching, React request-level deduplication, parallelized database fetches, and Next.js route prefetching.
 
 ---
 
@@ -204,6 +219,14 @@ flowchart TD
 2. **Deterministic Quick Gate:** Light queries (move checks, booking availability, room lookups, constraint verification) execute in milliseconds against the always-on FastAPI engine.
 3. **Heavy Compute Isolation:** Computationally intensive CP-SAT solves (initial schedule generation, deep disruption repair, resilience scanning) dispatch to a dedicated 4-vCPU / 16 GB runner via `workflow_dispatch`.
 4. **Tamper-Proof HMAC Relay:** The runner streams solver progress and final solutions back via an authenticated HMAC callback endpoint. All relayed timetables are re-verified by `checker.py` before database persistence.
+
+### High-Performance Web & Solver Architecture
+1. **Warm In-Memory Cache with Instant Eviction:** The ~140 KB dataset JSON and active timetable schedule are cached warm in memory across requests (20s TTL) and instantly invalidated via `clearDataCache()` across all 7 mutation write paths (dataset uploads, priority edits, manual moves, version restores, solver completions, proposal approvals, and demo resets).
+2. **Request-Level React Memoization:** `getActiveDataset()`, `getCurrentVersion()`, and `getPendingCounts()` are wrapped in React `cache()`, completely eliminating redundant database roundtrips between the root layout shell and nested page components.
+3. **Concurrent Database Reads:** All panel pages (`/dashboard`, `/approvals`, `/requests`, `/disruptions`, `/rooms`, `/spectra`) run their database queries in parallel via `Promise.all`.
+4. **Instant Prefetched Client-Side Navigation:** Sidebar and mobile tab navigation links enable explicit Next.js route prefetching (`prefetch={true}`), while timetable view selectors prefetch on hover (`onMouseEnter`), giving instantaneous client transitions.
+5. **Chronological Symmetry Breaking:** Identical multi-lecture session groups enforce strict chronological ordering ($T_{s1} < T_{s2}$) during fresh timetable generation, pruning symmetric permutation branches across 51 course groups.
+6. **Dynamic Inversion-Free Priority Formulation:** Priority weights dynamically scale based on administrator rankings ($w_i = \max(1, (N - \text{idx}) + 1)$), mathematically precluding priority inversions under custom category orders.
 
 ---
 

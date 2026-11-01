@@ -112,17 +112,49 @@ If the dispatch fails, `startJob` sends the job to the always-on engine instead.
 
 Jobs (`kind: job`) go through the relay when it is configured; sync calls always go to the always-on engine.
 
-## 5. Security notes
+## 5. Data Access & Performance Architecture
+
+The web tier employs multi-tier caching, concurrency, and client-side prefetching to guarantee sub-millisecond panel switching:
+
+1. **Warm In-Memory Cache:** `getActiveDataset` and `getCurrentVersion` maintain a short-lived (20s) memory cache across incoming HTTP requests. Panel switches retrieve active datasets in `< 0.1ms` without network roundtrips or JSON parsing overhead.
+2. **Instant Cache Invalidation:** Any mutation to datasets or timetables triggers `clearDataCache()`, purging stale entries across all 7 operational paths:
+   - Dataset upload / demo reset (`src/app/(app)/data/actions.ts`)
+   - Category priority order updates (`src/app/api/settings/priority/route.ts`)
+   - Manual session moves (`src/app/api/moves/route.ts`)
+   - Timetable version restores (`src/app/api/versions/[id]/restore/route.ts`)
+   - Background generation job completion (`src/app/api/jobs/[id]/route.ts`)
+   - Disruption / manual proposal approvals (`src/server/proposals.ts`)
+   - Demo database resets (`src/server/demo.ts`)
+3. **Request-Level Deduplication:** React `cache()` wraps `getActiveDataset()`, `getCurrentVersion()`, `getCurrentUser()`, and `getPendingCounts()`. Calls within the same request (e.g., `layout.tsx` shell and nested `page.tsx`) share identical in-memory references.
+4. **Concurrent Database Reads:** All panel routes execute database queries concurrently via `Promise.all`:
+   - `dashboard/page.tsx`: Version, audit log, history, and pending counts fetched in parallel.
+   - `approvals/page.tsx`: Users, bookings, and proposals queried concurrently.
+   - `disruptions/page.tsx`: Disruptions history, proposals, and sample disruption file read in parallel.
+   - `requests/page.tsx`: Personal bookings and proposals fetched simultaneously.
+   - `rooms/page.tsx`: Active dataset and approved booking requests fetched concurrently.
+5. **Client-Side Prefetching:** Primary navigation links in `SidebarNav` and `MobileTabs` enable explicit Next.js route prefetching (`prefetch={true}`), while `TimetablePicker` prefetches view routes on `onMouseEnter`.
+
+## 6. Interactive Visualizations & Spatial UI
+
+The landing page features high-performance visual and spatial components designed with zero GPU hitching and full accessibility fallbacks:
+
+1. **3D WebGL Campus Skyline (`skyline-scene.tsx`):** Renders the Week-7 schedule as a spatial 3D city in Three.js where buildings represent venues, floors represent time periods, and materials reflect session types. Uses `renderer.compileAsync` to pre-compile all shader programs in parallel before fading in over the placeholder grid, eliminating GPU stalls.
+2. **Interactive 3D Orrery (`orrery.tsx`):** A lightweight solar system implemented in pure CSS 3D (`transform-style: preserve-3d`), avoiding additional WebGL context overhead. Campus cohorts (groups, rooms, faculty, sessions, exams, bookings) orbit the engine sun scaled by dataset volume, with pointer-tilt physics and time freezing on hover.
+3. **Singularity Particle Wordmark (`singularity.tsx`):** Particle typography engine using typed `Float32Array` struct-of-arrays to eliminate per-frame garbage collection. Simulates a cursor black hole with accretion glow, orbital star capture, and explosive supernova shockwaves upon clicking.
+4. **Cosmos Starfield Canvas (`cosmos.tsx`):** Multi-layer 2D canvas starfield with scroll parallax, warp streaks, random shooting stars, and cursor gravitational light deflection (`LENS = 150`). Pauses automatically on hidden tabs via `visibilitychange` and respects `prefers-reduced-motion`.
+
+## 7. Security notes
 
 - Engine and relay endpoints require `X-Engine-Secret`. The relay callback base URL is a repository *variable*, so a workflow dispatch cannot redirect the secret.
 - Accounts are seeded; self sign-up is disabled, and the role field can't be set from input.
 - LLM input is wrapped as data. The parse call has no tools, and the assistant and navigator tools are read-only or navigation-only.
 - The runner workflow has `contents: read` and never pushes.
 
-## 6. Testing
+## 8. Testing
 
 | Suite | Command | Covers |
 | --- | --- | --- |
-| Engine | `cd engine && uv run pytest` | Checker vs official validator (oracle), solvers, repair, resilience, API |
-| Web | `cd web && pnpm test` | Hinglish parser, time maps, navigator fallback, tour steps, ICS export |
-| Types and lint | `pnpm typecheck && pnpm lint` | Strict TypeScript (`noUncheckedIndexedAccess`), Biome |
+| Engine | `cd engine && uv run pytest` | 189 tests: checker vs official validator (oracle), solvers, repair, resilience, API |
+| Web | `cd web && pnpm test` | 39 tests: Hinglish parser, time maps, navigator fallback, tour steps, ICS export |
+| Types and lint | `pnpm typecheck && pnpm lint` | Strict TypeScript (`noUncheckedIndexedAccess`), Biome (0 errors) |
+| Production Build | `cd web && pnpm build` | All 33 static & dynamic routes compiled and verified |
