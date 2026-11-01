@@ -43,6 +43,24 @@ export default async function DisruptionsPage() {
     }),
     sampleChangeFile(),
   ]);
+  const sessions = new Map((ds?.json.sessions ?? []).map((s) => [s.id, s]));
+  const placed = (version?.schedule.sessions ?? []).flatMap((p) => {
+    const s = sessions.get(p.session_id);
+    return s
+      ? [
+          {
+            id: s.id,
+            course: s.course_id,
+            faculty: s.faculty_id,
+            groups: s.groups,
+            room: p.room_id,
+            day: p.day,
+            start: p.start_period,
+            dur: s.duration,
+          },
+        ]
+      : [];
+  });
   const byDisruption = new Map(proposals.filter((p) => p.disruptionId).map((p) => [p.disruptionId, p.id]));
   return (
     <>
@@ -51,7 +69,7 @@ export default async function DisruptionsPage() {
         description="Load a change file (faculty leave, room closure, new or removed sessions). The engine proposes the fix that moves the fewest sessions; nothing changes until an Admin approves it."
       />
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-        <DisruptionPanel hasTimetable={!!version} sample={sample} />
+        <DisruptionPanel hasTimetable={!!version} sample={sample} placed={placed} />
         <Card className="h-fit">
           <CardHeader title="History" />
           {history.length ? (

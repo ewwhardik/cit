@@ -7,6 +7,7 @@ import { EmptyState } from "@/components/ui/empty";
 import { cn } from "@/lib/utils";
 import { getActiveDataset, getCurrentVersion } from "@/server/data";
 import { requireUser } from "@/server/session";
+import { ExamSeating } from "./seating";
 
 export const metadata: Metadata = { title: "Midsem exams" };
 
@@ -58,6 +59,7 @@ export default async function ExamsPage({ searchParams }: { searchParams: Promis
   const exams = new Map(ds.json.exams.map((e) => [e.id, e]));
   const rooms = new Map(ds.json.rooms.map((r) => [r.id, r]));
   const groups = ds.json.student_groups;
+  const groupSize = new Map(groups.map((g) => [g.id, g.size]));
   const group = sp.group && groups.some((g) => g.id === sp.group) ? sp.group : null;
 
   const rows = placed.flatMap((p) => {
@@ -110,19 +112,24 @@ export default async function ExamsPage({ searchParams }: { searchParams: Promis
                     {list.length ? (
                       <ul className="grid gap-2">
                         {list.map((r) => (
-                          <li
-                            key={r.exam_id}
-                            className="rounded-[var(--radius-control)] border-l-2 border-kind-exam bg-[color-mix(in_oklch,var(--kind-exam)_10%,transparent)] px-2.5 py-1.5"
-                          >
-                            <p className="text-[13px] font-medium">{r.exam.course_ids.join(" + ")}</p>
-                            <p className="text-[12px] text-gray-9">
-                              {r.exam.groups.join(", ")} · <span className="tabular">{r.exam.size}</span>{" "}
-                              students
-                            </p>
-                            <p className="mt-0.5 text-[12px] text-gray-9">
-                              <span className="tabular">{r.rooms.join(", ")}</span> ·{" "}
-                              <span className="tabular">{r.seats}</span> exam seats
-                            </p>
+                          <li key={r.exam_id}>
+                            <ExamSeating
+                              title={r.exam.course_ids.join(" + ")}
+                              rooms={r.rooms.map((id) => ({ id, capacity: rooms.get(id)?.capacity ?? 0 }))}
+                              groups={r.exam.groups.map((g) => ({ id: g, size: groupSize.get(g) ?? 0 }))}
+                              total={r.exam.size}
+                              focus={group}
+                            >
+                              <p className="text-[13px] font-medium">{r.exam.course_ids.join(" + ")}</p>
+                              <p className="text-[12px] text-gray-9">
+                                {r.exam.groups.join(", ")} · <span className="tabular">{r.exam.size}</span>{" "}
+                                students
+                              </p>
+                              <p className="mt-0.5 text-[12px] text-gray-9">
+                                <span className="tabular">{r.rooms.join(", ")}</span> ·{" "}
+                                <span className="tabular">{r.seats}</span> exam seats
+                              </p>
+                            </ExamSeating>
                           </li>
                         ))}
                       </ul>

@@ -29,15 +29,18 @@ export function RoomFinder({
   rooms,
   regular,
   week7,
+  initial,
 }: {
   rooms: Room[];
   regular: Record<string, string>;
   week7: Record<string, string>;
+  /** Preset search, e.g. from a "find a room for this slot" link. */
+  initial?: { day?: string; from?: number; to?: number; size?: number };
 }) {
-  const [day, setDay] = useState<string>("MON");
-  const [from, setFrom] = useState(3);
-  const [to, setTo] = useState(4);
-  const [size, setSize] = useState(40);
+  const [day, setDay] = useState<string>(initial?.day ?? "MON");
+  const [from, setFrom] = useState(initial?.from ?? 3);
+  const [to, setTo] = useState(Math.max(initial?.to ?? 4, initial?.from ?? 3));
+  const [size, setSize] = useState(initial?.size ?? 40);
   const [needs, setNeeds] = useState<string[]>([]);
   const [spectra, setSpectra] = useState(false);
   const [showBusy, setShowBusy] = useState(false);

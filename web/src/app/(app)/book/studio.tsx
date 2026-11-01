@@ -4,6 +4,7 @@ import { CheckCircle2, CircleAlert, Info, Plus, Sparkles, Trash2, Wand2, XCircle
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { DayStrip } from "@/components/booking/day-strip";
 import { Badge } from "@/components/ui/badge";
 import { Button, Spinner } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/ui/card";
@@ -624,6 +625,11 @@ function OutcomeCard({ o, multi }: { o: Outcome; multi: boolean }) {
         </p>
       ) : null}
       <p className="text-[12px] text-gray-10">{o.reason}</p>
+      <DayStrip
+        windows={o.windows}
+        given={o.room_id ? o : null}
+        tone={tone === "ok" ? "var(--ok)" : tone === "warn" ? "var(--warn)" : "var(--bad)"}
+      />
       {o.options && o.options.length > 1 ? (
         <details className="text-[12px] text-gray-9">
           <summary className="cursor-pointer">Other free options</summary>

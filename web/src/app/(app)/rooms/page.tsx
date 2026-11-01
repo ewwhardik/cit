@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/ui/empty";
 import type { BookingDecision } from "@/lib/schemas/schedule";
+import { DAYS } from "@/lib/time";
 import { getActiveDataset, getCurrentVersion } from "@/server/data";
 import { db, schema } from "@/server/db";
 import { requireUser } from "@/server/session";
@@ -10,8 +11,23 @@ import { RoomFinder } from "./finder";
 
 export const metadata: Metadata = { title: "Find a room" };
 
-export default async function RoomsPage() {
+export default async function RoomsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ day?: string; from?: string; to?: string; size?: string }>;
+}) {
   await requireUser();
+  const sp = await searchParams;
+  const num = (v: string | undefined, lo: number, hi: number) => {
+    const n = Number(v);
+    return Number.isInteger(n) && n >= lo && n <= hi ? n : undefined;
+  };
+  const initial = {
+    day: sp.day && (DAYS as readonly string[]).includes(sp.day) ? sp.day : undefined,
+    from: num(sp.from, 1, 13),
+    to: num(sp.to, 1, 13),
+    size: num(sp.size, 1, 5000),
+  };
   const [ds, app] = await Promise.all([
     getActiveDataset(),
     db.query.bookingRequests.findMany({
@@ -99,6 +115,7 @@ export default async function RoomsPage() {
         }))}
         regular={regular}
         week7={week7}
+        initial={initial}
       />
     </>
   );

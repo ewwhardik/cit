@@ -21,6 +21,15 @@ type Trace = {
     rooms: string[];
     soft_delta: number | null;
   }[];
+  /** One verdict per possible start time (engine order: day, then period). */
+  slots?: {
+    day: string;
+    start_period: number;
+    ok: boolean;
+    rule?: string;
+    reason?: string;
+    rooms?: string[];
+  }[];
 };
 
 const RULE: Record<string, string> = {
@@ -209,6 +218,20 @@ export function SessionActions({
               <span className="tabular">{trace.free_start_times}</span>
             </span>
           </div>
+          {trace.slots?.length ? (
+            <SlotMap
+              slots={trace.slots}
+              current={current}
+              onPick={
+                moveMode
+                  ? (day, start, room) => {
+                      setTarget({ day, start, room });
+                      setShowMove(true);
+                    }
+                  : null
+              }
+            />
+          ) : null}
           {trace.options.length ? (
             <div className="grid gap-1">
               <p className="text-[11px] font-medium text-gray-8">Best free alternatives</p>
@@ -308,6 +331,72 @@ export function SessionActions({
           </Button>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * Every start time the engine tried, as a week grid: green where the session
+ * could go, coloured by the first rule that blocks it elsewhere, and the
+ * current slot outlined. Clicking a green cell loads it into Move.
+ */
+function SlotMap({
+  slots,
+  current,
+  onPick,
+}: {
+  slots: NonNullable<Trace["slots"]>;
+  current: { day: string; start: number };
+  onPick: ((day: string, start: number, room: string) => void) | null;
+}) {
+  const at = new Map(slots.map((s) => [`${s.day}|${s.start_period}`, s]));
+  const periods = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+  return (
+    <div className="grid gap-1">
+      <p className="text-[11px] font-medium text-gray-8">
+        Every start time the engine checked{onPick ? " · click a green slot to try moving there" : ""}
+      </p>
+      <div className="wh-grid">
+        <span />
+        {periods.map((p) => (
+          <span key={p} className={cn("wh-head", p === 6 && "wh-lunch")}>
+            P{p}
+          </span>
+        ))}
+        {DAYS.map((day) => (
+          <div key={day} className="contents">
+            <span className="wh-day">{day}</span>
+            {periods.map((p) => {
+              const s = at.get(`${day}|${p}`);
+              const here = day === current.day && p === current.start;
+              const label = here
+                ? "Current slot"
+                : !s
+                  ? "Not a valid start"
+                  : s.ok
+                    ? `Free · ${s.rooms?.slice(0, 4).join(", ")}`
+                    : `${RULE[s.rule ?? ""] ?? s.rule}: ${s.reason ?? ""}`;
+              const room = s?.ok ? s.rooms?.[0] : undefined;
+              return (
+                <button
+                  key={p}
+                  type="button"
+                  disabled={!onPick || !room}
+                  title={label}
+                  aria-label={`${day} P${p}: ${label}`}
+                  onClick={() => room && onPick?.(day, p, room)}
+                  className={cn("wh-cell", here && "wh-here", s?.ok && "wh-ok", p === 6 && "wh-lunch")}
+                  style={
+                    !here && s && !s.ok
+                      ? { background: RULE_COLOR[s.rule ?? ""] ?? "var(--gray-6)" }
+                      : undefined
+                  }
+                />
+              );
+            })}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

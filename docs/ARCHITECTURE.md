@@ -165,6 +165,6 @@ The operations deck integrates full spatial awareness directly into day-to-day s
 | Suite | Command | Covers |
 | --- | --- | --- |
 | Engine | `cd engine && uv run pytest` | 189 tests: checker vs official validator (oracle), solvers, repair, resilience, API |
-| Web | `cd web && pnpm test` | 82 tests: Hinglish parser, 3D room layouts, time maps, audio haptics, campus zones, navigator fallback, tour steps, ICS export |
+| Web | `cd web && pnpm test` | 100 tests (10 test files): Hinglish parser, exam seating plans, disruption impact matrix, 3D room layouts, time maps, audio haptics, campus zones, navigator fallback, tour steps, ICS export |
 | Types and lint | `pnpm typecheck && pnpm lint` | Strict TypeScript (`noUncheckedIndexedAccess`), Biome (0 errors) |
-| Production Build | `cd web && pnpm build` | All 33 static & dynamic routes compiled and verified |
+| Production Build | `cd web && pnpm build` | All 35 static & dynamic routes compiled and verified |

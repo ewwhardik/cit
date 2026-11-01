@@ -8,8 +8,17 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/ui/card";
 import { JobStatusLine, useJob } from "@/components/workflow/job-progress";
+import { ImpactPreview, type Placed } from "./impact";
 
-export function DisruptionPanel({ hasTimetable, sample }: { hasTimetable: boolean; sample: string | null }) {
+export function DisruptionPanel({
+  hasTimetable,
+  sample,
+  placed,
+}: {
+  hasTimetable: boolean;
+  sample: string | null;
+  placed: Placed[];
+}) {
   const router = useRouter();
   const [text, setText] = useState("");
   const [jobId, setJobId] = useState<number | null>(null);
@@ -96,6 +105,7 @@ export function DisruptionPanel({ hasTimetable, sample }: { hasTimetable: boolea
           </Button>
         </div>
         {!hasTimetable ? <p className="text-[12px] text-gray-9">Generate a timetable first.</p> : null}
+        <ImpactPreview text={text} placed={placed} />
       </div>
       {jobId ? (
         <div className="border-t border-gray-4 p-4">

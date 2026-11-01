@@ -5,6 +5,7 @@ import {
   CalendarDays,
   CircleCheckBig,
   ClipboardList,
+  Clock,
   Cpu,
   Database,
   History,
@@ -21,6 +22,7 @@ import {
 const ICONS: Record<string, LucideIcon> = {
   layout: LayoutGrid,
   cube: Box,
+  clock: Clock,
   calendar: CalendarDays,
   exams: ClipboardList,
   shield: ShieldCheck,

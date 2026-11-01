@@ -12,6 +12,7 @@ import { STATUS_LABEL, slotText, timeAgo } from "@/lib/format";
 import type { BookingDecision } from "@/lib/schemas/schedule";
 import { db, schema } from "@/server/db";
 import { requireUser } from "@/server/session";
+import { BookingJourney } from "./journey";
 
 export const metadata: Metadata = { title: "My requests" };
 
@@ -47,7 +48,13 @@ export default async function RequestsPage() {
           {bookings.length ? (
             <ul className="divide-y divide-gray-4">
               {bookings.map((b) => {
-                const p = b.payload as { title?: string; attendance?: number; requested_category?: string };
+                const p = b.payload as {
+                  title?: string;
+                  attendance?: number;
+                  requested_category?: string;
+                  category?: string;
+                  windows?: { day: string; from_period: number; to_period: number }[];
+                };
                 const d = b.decision as BookingDecision | null;
                 return (
                   <li key={b.id} className="grid gap-2 px-4 py-3 md:grid-cols-[1fr_auto] md:items-center">
@@ -60,9 +67,18 @@ export default async function RequestsPage() {
                         </span>
                       </div>
                       <p className="tabular mt-0.5 text-[12px] text-gray-9">
-                        {slotText(d)} · {p.attendance} people · {p.requested_category?.replaceAll("_", " ")}
+                        {slotText(d)} · {p.attendance} people ·{" "}
+                        {(p.requested_category ?? p.category)?.replaceAll("_", " ")}
                       </p>
                       {b.reason ? <p className="mt-1 text-[12px] text-gray-10">{b.reason}</p> : null}
+                      <div className="mt-2 max-w-[560px]">
+                        <BookingJourney
+                          status={b.status}
+                          parsedBy={b.parsedBy}
+                          windows={p.windows ?? []}
+                          given={d}
+                        />
+                      </div>
                     </div>
                     {b.status === "pending" ||
                     b.status === "approved" ||

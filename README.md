@@ -186,6 +186,15 @@ python starter/validator.py --data starter/data/cit_public.json --schedule expor
 
 ---
 
+### 7. Tactical Operations & Scheduling Intelligence
+- **Common Free Time (`/free-time`):** Finds slots where multiple student cohorts and faculty members are simultaneously free for make-up lectures, combined electives, or club meetings, complete with a 1-click handoff to Room Finder.
+- **Checkerboard Exam Seating (`/exams`):** Rigorously enforces the problem statement's 50% capacity halving rule, generating alternating checkerboard seating plans with roll-number assignments per student cohort and interactive modal floor plans.
+- **Disruption Impact Matrix (`/disruptions`):** Real-time pre-solve visualization of knocked-out classes, closed periods, and affected student cohorts before invoking the CP-SAT repair engine.
+- **Booking Journey & Day Strip (`/requests` & `/book`):** Visual 4-stage pipeline (Written ➔ Read ➔ Checked by Engine ➔ Decision) with a 13-period comparison strip of requested window vs allocated slot.
+- **"Why Here" Constraint Slot Map (`/timetable`):** Comprehensive week map of all evaluated candidate slots color-coded by the exact blocking constraint rule, with 1-click slot relocation.
+
+---
+
 ## System Architecture
 
 ```mermaid

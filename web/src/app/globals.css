@@ -2561,3 +2561,249 @@ html.lx-has-cursor .lx-root textarea {
     }
   }
 }
+
+/* ---------------------------------------------------------------- exam seating */
+@layer components {
+  .ex-dialog {
+    width: min(720px, calc(100vw - 24px));
+    max-height: min(86vh, 900px);
+    margin: auto;
+    padding: 0;
+    overflow: hidden;
+    border: 1px solid var(--gray-4);
+    border-radius: var(--radius-card);
+    background: var(--surface);
+    color: var(--gray-10);
+  }
+  .ex-dialog[open] {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .ex-dialog::backdrop {
+    background: rgb(0 0 0 / 0.45);
+  }
+  .ex-board {
+    height: 14px;
+    border-radius: 3px;
+    background: var(--gray-3);
+    color: var(--gray-8);
+    font-size: 9px;
+    line-height: 14px;
+    text-align: center;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  .ex-seats {
+    display: grid;
+    gap: 3px;
+  }
+  .ex-seat {
+    aspect-ratio: 1;
+    max-height: 18px;
+    border-radius: 3px;
+    background: var(--gray-4);
+  }
+  .ex-gap {
+    background: transparent;
+    box-shadow: inset 0 0 0 1px var(--gray-4);
+  }
+  .ex-dim {
+    opacity: 0.25;
+  }
+}
+
+/* ---------------------------------------------------------------- common free time */
+@layer components {
+  .ft-grid {
+    display: grid;
+    grid-template-columns: 44px repeat(9, minmax(40px, 1fr));
+    gap: 4px;
+    min-width: 470px;
+  }
+  .ft-head {
+    display: grid;
+    text-align: center;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--gray-9);
+  }
+  .ft-head small {
+    font-weight: 400;
+    color: var(--gray-8);
+    font-size: 10px;
+  }
+  .ft-day {
+    align-self: center;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--gray-9);
+  }
+  .ft-cell,
+  .ft-key {
+    --busy: 0;
+    display: grid;
+    place-items: center;
+    height: 38px;
+    border-radius: 6px;
+    background: color-mix(in oklch, var(--bad) calc(var(--busy) * 70%), var(--gray-2));
+    color: var(--gray-10);
+    font-size: 12px;
+    transition:
+      transform 0.15s,
+      box-shadow 0.15s;
+  }
+  .ft-key {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+  }
+  .ft-free {
+    background: color-mix(in oklch, var(--ok) 38%, var(--surface));
+    color: var(--gray-10);
+  }
+  .ft-cell:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgb(0 0 0 / 0.12);
+  }
+  .ft-sel {
+    box-shadow: 0 0 0 2px var(--accent);
+  }
+  .ft-after-lunch {
+    margin-left: 10px;
+  }
+}
+
+/* ---------------------------------------------------------------- why-here slot map */
+@layer components {
+  .wh-grid {
+    display: grid;
+    grid-template-columns: 34px repeat(9, minmax(18px, 1fr));
+    gap: 3px;
+    max-width: 420px;
+  }
+  .wh-head,
+  .wh-day {
+    font-size: 10px;
+    color: var(--gray-8);
+    text-align: center;
+  }
+  .wh-day {
+    text-align: left;
+    align-self: center;
+  }
+  .wh-cell {
+    height: 18px;
+    border-radius: 4px;
+    background: var(--gray-3);
+    opacity: 0.85;
+  }
+  .wh-ok {
+    background: var(--ok);
+    opacity: 1;
+  }
+  .wh-ok:not(:disabled) {
+    cursor: pointer;
+  }
+  .wh-ok:not(:disabled):hover {
+    outline: 2px solid var(--gray-10);
+    outline-offset: 1px;
+  }
+  .wh-here {
+    background: transparent;
+    box-shadow: inset 0 0 0 2px var(--accent);
+    opacity: 1;
+  }
+  .wh-lunch {
+    margin-left: 6px;
+  }
+}
+
+/* ---------------------------------------------------------------- booking journey */
+@layer components {
+  .bj-steps {
+    display: flex;
+    gap: 4px;
+    font-size: 10px;
+    color: var(--gray-8);
+  }
+  .bj-steps li {
+    --bj: var(--accent);
+    flex: 1;
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+  }
+  .bj-steps li::before {
+    content: "";
+    height: 3px;
+    border-radius: 2px;
+    background: var(--gray-4);
+  }
+  .bj-steps li span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-transform: capitalize;
+  }
+  .bj-steps .bj-done {
+    color: var(--gray-10);
+  }
+  .bj-steps .bj-done::before {
+    background: var(--bj);
+  }
+  .bj-day {
+    display: grid;
+    grid-template-columns: repeat(13, 1fr);
+    gap: 2px;
+  }
+  .bj-cell,
+  .bj-key {
+    --bj: var(--ok);
+    position: relative;
+    height: 12px;
+    border-radius: 2px;
+    background: var(--gray-3);
+  }
+  .bj-key {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+  }
+  .bj-ask {
+    background: color-mix(in oklch, var(--accent) 22%, var(--gray-3));
+    box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--accent) 60%, transparent);
+  }
+  .bj-got {
+    background: var(--bj);
+  }
+  .bj-cell.bj-ask.bj-got {
+    box-shadow: inset 0 0 0 1px var(--gray-10);
+  }
+  .bj-lunch,
+  .bj-eve {
+    margin-left: 4px;
+  }
+}
+
+/* ---------------------------------------------------------------- disruption impact */
+@layer components {
+  .di-cell {
+    --n: 0;
+    display: grid;
+    place-items: center;
+    height: 18px;
+    border-radius: 4px;
+    background: color-mix(in oklch, var(--bad) calc(var(--n) * 100%), var(--gray-3));
+    color: #fff;
+    font-size: 10px;
+    font-weight: 600;
+  }
+  .di-closed {
+    background-image: repeating-linear-gradient(
+      135deg,
+      transparent 0 3px,
+      color-mix(in oklch, var(--gray-10) 22%, transparent) 3px 5px
+    );
+  }
+}
