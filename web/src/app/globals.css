@@ -1667,3 +1667,309 @@ html.lx-has-cursor .lx-root * {
 html.lx-has-cursor .lx-root textarea {
   cursor: text;
 }
+
+/* ------------------------------------------------------------------ campus radar (dashboard)
+ * An always-dark "screen" inside the card so the neon reads in both themes.
+ * Only transform/opacity animate (compositor-only); .cr-paused stops them off screen.
+ */
+@layer components {
+  .cr-screen {
+    position: relative;
+    min-width: 0;
+    overflow: hidden;
+    border-radius: 14px;
+    border: 1px solid rgb(239 230 210 / 0.08);
+    background:
+      radial-gradient(70% 60% at 50% 55%, rgb(198 255 61 / 0.06), transparent 70%),
+      radial-gradient(circle at 1px 1px, rgb(239 230 210 / 0.07) 1px, transparent 0) 0 0 / 18px 18px,
+      #0b0a09;
+    color: #efe6d2;
+    box-shadow:
+      inset 0 1px 0 rgb(239 230 210 / 0.05),
+      inset 0 -40px 80px -40px rgb(0 0 0 / 0.8);
+  }
+  .cr-sweep-plane {
+    position: absolute;
+    left: 50%;
+    top: 56%;
+    width: 120%;
+    aspect-ratio: 1;
+    translate: -50% -50%;
+    transform: scaleY(0.5);
+    pointer-events: none;
+  }
+  .cr-sweep {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: conic-gradient(
+      from 0deg,
+      transparent 0 78%,
+      rgb(198 255 61 / 0.03) 86%,
+      rgb(198 255 61 / 0.22) 99.6%,
+      transparent 100%
+    );
+    animation: cr-spin 6s linear infinite;
+    will-change: transform;
+  }
+  @keyframes cr-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  .cr-ground {
+    fill: rgb(239 230 210 / 0.025);
+    stroke: rgb(239 230 210 / 0.1);
+    stroke-dasharray: 3 5;
+  }
+  .cr-range {
+    fill: none;
+    stroke: rgb(198 255 61 / 0.35);
+    stroke-width: 0.8;
+    stroke-dasharray: 2 6;
+  }
+  .cr-pod {
+    cursor: pointer;
+    outline: none;
+  }
+  .cr-pod polygon,
+  .cr-pod path {
+    transition:
+      fill 0.35s ease,
+      stroke 0.35s ease,
+      fill-opacity 0.35s ease,
+      d 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .cr-face-t {
+    fill: #1f1b17;
+    stroke: rgb(239 230 210 / 0.22);
+    stroke-width: 0.8;
+  }
+  .cr-face-l {
+    fill: #171411;
+    stroke: rgb(239 230 210 / 0.1);
+    stroke-width: 0.6;
+  }
+  .cr-face-r {
+    fill: #100e0c;
+    stroke: rgb(239 230 210 / 0.08);
+    stroke-width: 0.6;
+  }
+  .cr-fill {
+    fill: var(--c);
+    fill-opacity: 0.5;
+  }
+  .cr-foot {
+    fill: var(--c);
+    fill-opacity: 0;
+  }
+  .cr-pod-on .cr-face-t {
+    fill: var(--c);
+    fill-opacity: 0.85;
+    stroke: var(--c);
+  }
+  .cr-pod-on .cr-face-l {
+    stroke: color-mix(in srgb, var(--c) 45%, transparent);
+  }
+  .cr-pod-on .cr-foot {
+    fill-opacity: 0.12;
+  }
+  .cr-pod:hover .cr-face-t,
+  .cr-pod:focus-visible .cr-face-t {
+    stroke: #fff;
+    stroke-width: 1.4;
+  }
+  .cr-pod-sel .cr-foot {
+    fill-opacity: 0.22;
+    stroke: var(--c);
+    stroke-width: 1;
+    stroke-dasharray: 4 3;
+  }
+  .cr-pod-sel:not(.cr-pod-on) .cr-foot {
+    stroke: #efe6d2;
+    fill: #efe6d2;
+    fill-opacity: 0.06;
+  }
+  .cr-pod-sel .cr-face-t {
+    stroke: #fff;
+    stroke-width: 1.4;
+  }
+  .cr-beacon line {
+    stroke: var(--c);
+    stroke-width: 1.2;
+    stroke-linecap: round;
+    opacity: 0.8;
+  }
+  .cr-beacon circle {
+    fill: #fff;
+    stroke: var(--c);
+    stroke-width: 2;
+  }
+  .cr-pulse {
+    fill: none;
+    stroke: var(--c);
+    stroke-width: 1.5;
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: cr-pulse 2.4s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+  }
+  @keyframes cr-pulse {
+    from {
+      transform: scale(0.4);
+      opacity: 0.95;
+    }
+    to {
+      transform: scale(2.3);
+      opacity: 0;
+    }
+  }
+  .cr-label {
+    fill: rgb(239 230 210 / 0.7);
+    font-family: var(--font-geist-mono), ui-monospace, monospace;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-anchor: middle;
+    pointer-events: none;
+  }
+  .cr-pod-on .cr-label,
+  .cr-pod-sel .cr-label {
+    fill: #fff;
+  }
+  .cr-paused .cr-sweep,
+  .cr-paused .cr-pulse {
+    animation-play-state: paused;
+  }
+  .cr-hud {
+    position: absolute;
+    z-index: 1;
+    display: flex;
+    gap: 12px;
+    font-family: var(--font-geist-mono), ui-monospace, monospace;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: rgb(239 230 210 / 0.5);
+    pointer-events: none;
+  }
+  .cr-hud-tl {
+    top: 10px;
+    left: 12px;
+  }
+  .cr-legend {
+    right: 12px;
+    bottom: 10px;
+    left: 12px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+  .cr-legend li {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .cr-legend li span {
+    width: 7px;
+    height: 7px;
+    border-radius: 2px;
+  }
+
+  .cr-inspector {
+    min-width: 0;
+    border-radius: 14px;
+    border: 1px solid var(--color-gray-4, rgb(0 0 0 / 0.1));
+    padding: 14px;
+  }
+  .cr-chip {
+    flex: none;
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--c) 55%, transparent);
+    background: color-mix(in srgb, var(--c) 14%, transparent);
+    padding: 2px 8px;
+    font-size: 10.5px;
+    font-weight: 600;
+    color: var(--color-gray-10, currentColor);
+  }
+  .cr-gauge {
+    height: 6px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: color-mix(in srgb, currentColor 10%, transparent);
+  }
+  .cr-gauge span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: color-mix(in srgb, currentColor 35%, transparent);
+    transition: width 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .cr-room {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-radius: 8px;
+    padding: 4px 6px;
+    font-size: 12px;
+    transition: background 0.2s;
+  }
+  .cr-room:hover {
+    background: color-mix(in srgb, currentColor 6%, transparent);
+  }
+  .cr-dot {
+    width: 7px;
+    height: 7px;
+    flex: none;
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, currentColor 30%, transparent);
+  }
+
+  /* week scrubber: an activity strip with a transparent range input laid over it */
+  .cr-scrub {
+    position: relative;
+    height: 40px;
+  }
+  .cr-strip {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+  }
+  .cr-bar {
+    flex: 1;
+    min-width: 0;
+    border-radius: 2px 2px 0 0;
+    background: color-mix(in srgb, var(--accent) 35%, transparent);
+    transition:
+      background 0.2s,
+      transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    transform-origin: bottom;
+  }
+  .cr-bar:nth-child(9n + 5) {
+    margin-right: 3px;
+  }
+  .cr-bar-day {
+    margin-left: 6px;
+  }
+  .cr-bar-ev {
+    box-shadow: inset 0 3px 0 #d946ef;
+  }
+  .cr-bar-on {
+    background: var(--accent) !important;
+    transform: scaleY(1.12);
+    box-shadow: 0 0 12px var(--accent);
+  }
+  .cr-range-input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    opacity: 0;
+    cursor: ew-resize;
+  }
+  .cr-scrub:has(.cr-range-input:focus-visible) {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+    border-radius: 4px;
+  }
+}

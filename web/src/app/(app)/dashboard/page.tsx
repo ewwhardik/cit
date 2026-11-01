@@ -1,16 +1,17 @@
-import { asc, desc, eq } from "drizzle-orm";
+import { asc, desc, eq, inArray } from "drizzle-orm";
 import { CalendarX2 } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { CampusRadar } from "@/components/dashboard/campus-radar";
 import { EngineStatus } from "@/components/dashboard/engine-status";
 import { DashboardHero } from "@/components/dashboard/hero";
-import { NowPanel, type SlotInfo } from "@/components/dashboard/now-panel";
 import { WeekNumbers } from "@/components/dashboard/week-numbers";
 import { ReportCard } from "@/components/report/report-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty";
+import type { RoomLite, SlotState } from "@/lib/campus-zones";
 import { timeAgo } from "@/lib/format";
 import {
   campusHeat,
@@ -24,7 +25,7 @@ import {
   weekNumbers,
 } from "@/lib/insights";
 import type { Dataset } from "@/lib/schemas/dataset";
-import type { Report, Schedule } from "@/lib/schemas/schedule";
+import type { BookingDecision, Report, Schedule } from "@/lib/schemas/schedule";
 import { DAYS, periodForHour, periodRange } from "@/lib/time";
 import { roomUtilisation } from "@/lib/timetable";
 import { cn } from "@/lib/utils";
@@ -71,7 +72,7 @@ export default async function DashboardPage({
   const sp = await searchParams;
   const ds = await getActiveDataset();
   // Independent reads in parallel. Pending counts are memoized via React cache from the layout.
-  const [version, activity, historyRows, pendingCounts] = await Promise.all([
+  const [version, activity, historyRows, pendingCounts, appRows] = await Promise.all([
     ds ? getCurrentVersion(ds.id) : Promise.resolve(null),
     db.query.auditLog.findMany({ orderBy: desc(schema.auditLog.at), limit: 8 }),
     ds
@@ -83,7 +84,25 @@ export default async function DashboardPage({
           .limit(24)
       : Promise.resolve([]),
     getPendingCounts(user.role),
+    db.query.bookingRequests.findMany({
+      where: inArray(schema.bookingRequests.status, ["approved", "alternative_offered"]),
+    }),
   ]);
+  const appBookings = appRows
+    .map((a) => {
+      const d = a.decision as BookingDecision | null;
+      const p = a.payload as { title?: string; attendance?: number } | null;
+      return {
+        id: a.requestId,
+        title: p?.title ?? a.requestId,
+        attendance: p?.attendance ?? 0,
+        room: d?.room_id ?? "",
+        day: d?.day ?? "",
+        from: d?.start_period ?? 0,
+        to: d?.end_period ?? 0,
+      };
+    })
+    .filter((b) => b.room && b.day && b.from && b.to);
   const pending = pendingCounts.total;
   const history = historyRows.map((r) => (r.report as Report).soft_total);
   const today = demoToday();
@@ -145,6 +164,7 @@ export default async function DashboardPage({
           activity={activity.map((a) => ({ id: a.id, action: a.action, at: a.at }))}
           history={history}
           numbers={numbers!}
+          appBookings={appBookings}
         />
       )}
     </>
@@ -161,6 +181,7 @@ function Console({
   activity,
   history,
   numbers,
+  appBookings,
 }: {
   ds: Dataset;
   schedule: Schedule;
@@ -171,9 +192,29 @@ function Console({
   activity: { id: number; action: string; at: Date }[];
   history: number[];
   numbers: NonNullable<ReturnType<typeof weekNumbers>>;
+  appBookings: { id: string; title: string; attendance: number; room: string; day: string; from: number; to: number }[];
 }) {
   const live = liveSlot();
-  const slots: Record<string, SlotInfo> = {};
+  const slots: Record<string, SlotState> = {};
+  const facultyName = new Map(ds.faculty.map((f) => [f.id, f.name]));
+  const requests = new Map(ds.booking_requests.map((r) => [r.id, r]));
+  // Base fest bookings from generated schedule + approved in-app bookings.
+  const baseEvents = (schedule.fest_week?.bookings ?? []).flatMap((b) =>
+    b.status !== "rejected" && b.day && b.room_id && b.start_period && b.end_period
+      ? [
+          {
+            id: b.request_id,
+            title: requests.get(b.request_id)?.title ?? b.request_id,
+            room: b.room_id,
+            day: b.day,
+            from: b.start_period,
+            to: b.end_period,
+            attendance: requests.get(b.request_id)?.attendance ?? 0,
+          },
+        ]
+      : [],
+  );
+  const events = [...baseEvents, ...appBookings];
   for (const d of DAYS)
     for (let p = 1; p <= 9; p++) {
       const { running, free } = nowAt(ds, schedule, d, p);
@@ -184,10 +225,28 @@ function Console({
           room: r.room,
           kind: r.kind,
           groups: r.groups,
+          faculty: facultyName.get(r.faculty) ?? "",
+          size: r.size,
         })),
+        events: events
+          .filter((e) => e.day === d && p >= e.from && p <= e.to)
+          .map((e) => ({
+            id: e.id,
+            title: e.title,
+            room: e.room,
+            attendance: e.attendance,
+          })),
         free: free.map((r) => ({ id: r.id, capacity: r.capacity, type: r.type })),
       };
     }
+  const rooms: RoomLite[] = ds.rooms.map((r) => ({
+    id: r.id,
+    name: r.name,
+    type: r.type,
+    capacity: r.capacity,
+    building: r.building ?? "",
+    features: r.features,
+  }));
   const mine = facultyId ? nextFor(ds, schedule, facultyId, live.day, live.period) : null;
   const next = mine
     ? {
@@ -249,7 +308,7 @@ function Console({
 
       <div className="grid grid-cols-[minmax(0,1fr)] gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
         <div data-tour="now" className="min-w-0">
-          <NowPanel slots={slots} live={live} next={next} />
+          <CampusRadar slots={slots} live={live} next={next} rooms={rooms} />
         </div>
         <ConstraintMonitor report={report} />
       </div>
